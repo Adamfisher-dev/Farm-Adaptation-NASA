@@ -1,0 +1,57 @@
+{
+  "requested_point": [
+    42.0,
+    -93.125
+  ],
+  "units": {
+    "T2M": "C",
+    "T2M_MAX": "C",
+    "T2M_MIN": "C",
+    "T2MDEW": "C",
+    "RH2M": "%",
+    "WS2M": "m/s",
+    "PS": "kPa",
+    "PRECTOTCORR": "mm/day",
+    "ALLSKY_SFC_SW_DWN": "MJ/m^2/day",
+    "CLRSKY_SFC_SW_DWN": "MJ/m^2/day",
+    "GWETTOP": "1",
+    "GWETROOT": "1"
+  },
+  "longnames": {
+    "T2M": "Temperature at 2 Meters",
+    "T2M_MAX": "Temperature at 2 Meters Maximum",
+    "T2M_MIN": "Temperature at 2 Meters Minimum",
+    "T2MDEW": "Dew/Frost Point at 2 Meters",
+    "RH2M": "Relative Humidity at 2 Meters",
+    "WS2M": "Wind Speed at 2 Meters",
+    "PS": "Surface Pressure",
+    "PRECTOTCORR": "Precipitation Corrected",
+    "ALLSKY_SFC_SW_DWN": "All Sky Surface Shortwave Downward Irradiance",
+    "CLRSKY_SFC_SW_DWN": "Clear Sky Surface Shortwave Downward Irradiance",
+    "GWETTOP": "Surface Soil Wetness",
+    "GWETROOT": "Root Zone Soil Wetness"
+  },
+  "geometry": {
+    "type": "Point",
+    "coordinates": [
+      -93.125,
+      42.0,
+      301.38
+    ]
+  },
+  "fetched_at": "2026-11-14T11:56:33+00:00",
+  "source": "NASA POWER daily point API, community AG (meteorology from GMAO MERRA-2; solar from CERES)",
+  "cell": {
+    "centre": [
+      42.0,
+      -93.125
+    ],
+    "bounds": [
+      -93.4375,
+      41.75,
+      -92.8125,
+      42.25
+    ],
+    "id": "42.000_-93.125"
+  }
+}

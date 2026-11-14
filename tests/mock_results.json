@@ -1,0 +1,2149 @@
+{
+ "_mock": true,
+ "_note": "Hand-written placeholder in the shape of CLAUDE.md 10.3. Numbers are illustrative only, not model output.",
+ "inputs_echo": {
+  "weights": {
+   "drought": 0.2,
+   "soil_erosion": 0.2,
+   "water_quality": 0.2,
+   "income": 0.2,
+   "pests_fertiliser": 0.2
+  },
+  "livestock_or_hay_buyer": false,
+  "existing_rotation": [
+   "corn",
+   "soybean"
+  ]
+ },
+ "distribution_years": [
+  1981,
+  1982,
+  1983,
+  1984,
+  1985,
+  1986,
+  1987,
+  1988,
+  1989,
+  1990,
+  1991,
+  1992,
+  1993,
+  1994,
+  1995,
+  1996,
+  1997,
+  1998,
+  1999,
+  2000,
+  2001,
+  2002,
+  2003,
+  2004,
+  2005,
+  2006,
+  2007,
+  2008,
+  2009,
+  2010,
+  2011,
+  2012,
+  2013,
+  2014,
+  2015,
+  2016,
+  2017,
+  2018,
+  2019,
+  2020,
+  2021,
+  2022,
+  2023,
+  2024,
+  2025
+ ],
+ "field": {
+  "soil": {
+   "awc_mm_per_m": 190.0,
+   "drainage_class": "Poorly drained",
+   "hydrologic_group": "C/D",
+   "dominant_mapunit": "[MOCK] Clarion-Nicollet-Webster complex",
+   "likely_tiled": true,
+   "source": "mock"
+  },
+  "slope_pct": 2.5,
+  "crop_history": {
+   "2019": "corn",
+   "2020": "soybean",
+   "2021": "corn",
+   "2022": "soybean",
+   "2023": "corn",
+   "2024": "soybean"
+  },
+  "power_cell": [
+   -94.0625,
+   41.75,
+   -93.4375,
+   42.25
+  ],
+  "overridden": []
+ },
+ "snapshot": {
+  "gdd": {
+   "label": "Heat units (growing degree days), Apr-Oct",
+   "unit": "degree C days",
+   "recent_mean": 1780,
+   "trend_per_decade": 25,
+   "p_value": 0.04
+  },
+  "frost_free_days": {
+   "label": "Frost-free season",
+   "unit": "days",
+   "recent_mean": 165,
+   "trend_per_decade": 2.1,
+   "p_value": 0.08
+  },
+  "growing_season_rain_mm": {
+   "label": "Growing-season rain, May-Sep",
+   "unit": "mm",
+   "recent_mean": 520,
+   "trend_per_decade": 6,
+   "p_value": 0.4
+  },
+  "longest_dry_spell_days": {
+   "label": "Longest dry spell, Jun-Aug",
+   "unit": "days",
+   "recent_mean": 12,
+   "trend_per_decade": 0.3,
+   "p_value": 0.5
+  },
+  "hot_days": {
+   "label": "Hot days above 30 C, Jul-Aug",
+   "unit": "days",
+   "recent_mean": 20,
+   "trend_per_decade": 0.8,
+   "p_value": 0.3
+  },
+  "heavy_rain_days": {
+   "label": "Heavy-rain days above 25 mm, Mar-Jun",
+   "unit": "days",
+   "recent_mean": 3,
+   "trend_per_decade": 0.2,
+   "p_value": 0.2
+  }
+ },
+ "results": [
+  {
+   "rotation_id": "cs",
+   "name": "Corn–soybean (your current rotation)",
+   "tier": "current",
+   "is_existing": true,
+   "best_match": false,
+   "sequence": [
+    "corn",
+    "soybean"
+   ],
+   "cover_after": [
+    null,
+    null
+   ],
+   "score": {
+    "mean": 0.5,
+    "p05": 0.45,
+    "p95": 0.55,
+    "p_top": 0.06
+   },
+   "pareto_dominated": false,
+   "criteria": {
+    "drought_risk": {
+     "raw": 22,
+     "unit": "stressed days in sensitive window (worst 10% of years)",
+     "v": 0.5,
+     "contribution": 0.1,
+     "ci": [
+      19.8,
+      24.2
+     ]
+    },
+    "water_leaving": {
+     "raw": 260,
+     "unit": "mm drained per year",
+     "v": 0.5,
+     "contribution": 0.1,
+     "ci": [
+      234.0,
+      286.0
+     ]
+    },
+    "erosion_exposure": {
+     "raw": 30,
+     "unit": "bare-and-wet days per year",
+     "v": 0.5,
+     "contribution": 0.05,
+     "ci": [
+      27.0,
+      33.0
+     ]
+    },
+    "som_proxy": {
+     "raw": 1,
+     "unit": "level 0-3",
+     "v": 0.5,
+     "contribution": 0.05,
+     "ci": [
+      1,
+      1
+     ]
+    },
+    "income": {
+     "raw": 420,
+     "unit": "$ per acre per year (typical margin)",
+     "v": 0.5,
+     "contribution": 0.1,
+     "ci": [
+      378.0,
+      462.0
+     ]
+    },
+    "pest_break": {
+     "raw": 1,
+     "unit": "level 0-3",
+     "v": 0.5,
+     "contribution": 0.05,
+     "ci": [
+      1,
+      1
+     ]
+    },
+    "n_benefit": {
+     "raw": 1,
+     "unit": "level 0-3",
+     "v": 0.5,
+     "contribution": 0.05,
+     "ci": [
+      1,
+      1
+     ]
+    }
+   },
+   "distributions": {
+    "drought_risk": [
+     16.5,
+     18.3,
+     14.9,
+     11.2,
+     13.8,
+     10.6,
+     16.9,
+     24.5,
+     13.5,
+     12.8,
+     19.4,
+     18.6,
+     17.1,
+     10.9,
+     16.3,
+     20.7,
+     8.4,
+     13.8,
+     5.1,
+     8.8,
+     5.4,
+     15.1,
+     8.9,
+     18.1,
+     17.4,
+     15.4,
+     1.4,
+     13.3,
+     16.2,
+     17.2,
+     7.3,
+     31.6,
+     10.6,
+     11.6,
+     22.9,
+     11.7,
+     16.3,
+     21.8,
+     13.0,
+     15.8,
+     17.2,
+     16.9,
+     9.1,
+     17.0,
+     24.7
+    ],
+    "water_leaving": [
+     167.2,
+     311.6,
+     267.2,
+     221.5,
+     380.0,
+     305.7,
+     188.0,
+     264.5,
+     294.6,
+     248.7,
+     301.0,
+     256.0,
+     300.0,
+     346.3,
+     219.5,
+     272.2,
+     232.2,
+     267.6,
+     188.8,
+     225.2,
+     248.2,
+     313.9,
+     328.7,
+     180.6,
+     212.3,
+     298.8,
+     140.5,
+     232.2,
+     254.2,
+     335.4,
+     301.4,
+     240.4,
+     237.9,
+     245.0,
+     351.4,
+     234.3,
+     241.8,
+     281.2,
+     252.8,
+     248.2,
+     193.2,
+     259.3,
+     233.4,
+     330.0,
+     299.2
+    ],
+    "erosion_exposure": [
+     29.8,
+     35.3,
+     27.3,
+     38.4,
+     30.0,
+     34.7,
+     19.7,
+     32.8,
+     16.5,
+     13.7,
+     27.6,
+     22.8,
+     31.3,
+     48.0,
+     23.3,
+     25.0,
+     31.6,
+     33.9,
+     28.6,
+     28.4,
+     35.6,
+     34.2,
+     21.7,
+     29.4,
+     30.3,
+     21.6,
+     32.1,
+     23.1,
+     37.8,
+     31.5,
+     30.7,
+     25.3,
+     29.1,
+     14.0,
+     20.9,
+     32.9,
+     13.0,
+     36.8,
+     16.0,
+     36.1,
+     23.2,
+     36.2,
+     31.0,
+     17.7,
+     40.0
+    ]
+   },
+   "stressed_years": {
+    "n": 6,
+    "of": 45
+   },
+   "bare_months": 12,
+   "rotation_months": 24,
+   "calendar": [
+    {
+     "year_in_rotation": 1,
+     "month": 1,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 2,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 3,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 4,
+     "state": "bare",
+     "crop": null,
+     "risk": [
+      "spring_erosion"
+     ]
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 5,
+     "state": "crop",
+     "crop": "corn",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 6,
+     "state": "crop",
+     "crop": "corn",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 7,
+     "state": "crop",
+     "crop": "corn",
+     "risk": [
+      "pollination_drought"
+     ]
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 8,
+     "state": "crop",
+     "crop": "corn",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 9,
+     "state": "crop",
+     "crop": "corn",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 10,
+     "state": "crop",
+     "crop": "corn",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 11,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 12,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 1,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 2,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 3,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 4,
+     "state": "bare",
+     "crop": null,
+     "risk": [
+      "spring_erosion"
+     ]
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 5,
+     "state": "crop",
+     "crop": "soybean",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 6,
+     "state": "crop",
+     "crop": "soybean",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 7,
+     "state": "crop",
+     "crop": "soybean",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 8,
+     "state": "crop",
+     "crop": "soybean",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 9,
+     "state": "crop",
+     "crop": "soybean",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 10,
+     "state": "crop",
+     "crop": "soybean",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 11,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 12,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    }
+   ],
+   "replay": {
+    "year": 2012,
+    "criteria": {
+     "drought_risk": {
+      "that_year": 31.6,
+      "typical": 15.4
+     },
+     "water_leaving": {
+      "that_year": 240.4,
+      "typical": 254.2
+     },
+     "erosion_exposure": {
+      "that_year": 25.3,
+      "typical": 29.8
+     }
+    }
+   },
+   "card": {
+    "why": "This is the rotation you run today, so every other option is compared against it.",
+    "evidence": [
+     {
+      "claim": "Corn–soybean is the baseline system in Iowa State's Marsden Farm rotation trial, running since 2001.",
+      "source": "https://inrc.cals.iastate.edu/marsden-long-term-rotation-study"
+     }
+    ],
+    "benefits": "Familiar, simple to manage, established markets for both crops.",
+    "gaps": "Scores use regional weather (about 50 km grid), not your own field's records.",
+    "risks": "Soil is bare from harvest to planting, including the spring months when heavy rain is most likely on this field."
+   },
+   "confidence": "high",
+   "flags": []
+  },
+  {
+   "rotation_id": "csorc",
+   "name": "Corn–soybean–oats with red clover",
+   "tier": "bigger_shift",
+   "is_existing": false,
+   "best_match": true,
+   "sequence": [
+    "corn",
+    "soybean",
+    "oats"
+   ],
+   "cover_after": [
+    null,
+    null,
+    "red clover"
+   ],
+   "score": {
+    "mean": 0.682,
+    "p05": 0.632,
+    "p95": 0.732,
+    "p_top": 0.52
+   },
+   "pareto_dominated": false,
+   "criteria": {
+    "drought_risk": {
+     "raw": 18,
+     "unit": "stressed days in sensitive window (worst 10% of years)",
+     "v": 0.682,
+     "contribution": 0.136,
+     "ci": [
+      16.2,
+      19.8
+     ]
+    },
+    "water_leaving": {
+     "raw": 195,
+     "unit": "mm drained per year",
+     "v": 0.75,
+     "contribution": 0.15,
+     "ci": [
+      175.5,
+      214.5
+     ]
+    },
+    "erosion_exposure": {
+     "raw": 14,
+     "unit": "bare-and-wet days per year",
+     "v": 1.0,
+     "contribution": 0.1,
+     "ci": [
+      12.6,
+      15.4
+     ]
+    },
+    "som_proxy": {
+     "raw": 2,
+     "unit": "level 0-3",
+     "v": 0.667,
+     "contribution": 0.067,
+     "ci": [
+      2,
+      2
+     ]
+    },
+    "income": {
+     "raw": 410,
+     "unit": "$ per acre per year (typical margin)",
+     "v": 0.476,
+     "contribution": 0.095,
+     "ci": [
+      369.0,
+      451.0
+     ]
+    },
+    "pest_break": {
+     "raw": 2,
+     "unit": "level 0-3",
+     "v": 0.667,
+     "contribution": 0.067,
+     "ci": [
+      2,
+      2
+     ]
+    },
+    "n_benefit": {
+     "raw": 2,
+     "unit": "level 0-3",
+     "v": 0.667,
+     "contribution": 0.067,
+     "ci": [
+      2,
+      2
+     ]
+    }
+   },
+   "distributions": {
+    "drought_risk": [
+     13.5,
+     6.9,
+     22.1,
+     20.8,
+     11.2,
+     17.4,
+     15.4,
+     0.4,
+     14.8,
+     13.2,
+     13.9,
+     8.1,
+     12.2,
+     12.6,
+     19.4,
+     15.2,
+     13.5,
+     21.1,
+     10.7,
+     11.6,
+     4.4,
+     21.3,
+     18.3,
+     18.1,
+     16.8,
+     14.1,
+     14.6,
+     12.2,
+     12.5,
+     13.8,
+     21.1,
+     30.3,
+     13.2,
+     10.6,
+     10.3,
+     21.5,
+     16.0,
+     13.8,
+     11.8,
+     8.0,
+     13.2,
+     17.9,
+     11.5,
+     12.4,
+     12.4
+    ],
+    "water_leaving": [
+     199.9,
+     123.3,
+     184.4,
+     156.6,
+     234.8,
+     160.3,
+     221.0,
+     263.6,
+     180.9,
+     167.9,
+     203.6,
+     194.9,
+     150.3,
+     215.7,
+     285.7,
+     183.4,
+     185.9,
+     148.0,
+     209.4,
+     138.9,
+     145.2,
+     252.6,
+     154.3,
+     243.7,
+     263.6,
+     206.7,
+     219.9,
+     282.9,
+     186.1,
+     168.3,
+     134.1,
+     196.9,
+     261.6,
+     238.2,
+     152.6,
+     156.5,
+     172.3,
+     208.2,
+     185.8,
+     204.7,
+     208.4,
+     181.6,
+     193.2,
+     204.3,
+     191.2
+    ],
+    "erosion_exposure": [
+     16.5,
+     23.4,
+     17.0,
+     14.3,
+     5.6,
+     15.9,
+     4.3,
+     7.0,
+     18.3,
+     17.5,
+     13.3,
+     5.4,
+     12.1,
+     10.6,
+     17.2,
+     25.3,
+     15.1,
+     10.1,
+     8.1,
+     13.7,
+     13.1,
+     8.2,
+     14.6,
+     8.2,
+     19.6,
+     19.3,
+     19.4,
+     11.6,
+     16.6,
+     13.3,
+     12.1,
+     12.3,
+     7.5,
+     6.8,
+     18.0,
+     13.0,
+     15.1,
+     19.0,
+     5.3,
+     10.1,
+     14.9,
+     16.0,
+     12.1,
+     19.1,
+     15.1
+    ]
+   },
+   "stressed_years": {
+    "n": 4,
+    "of": 45
+   },
+   "bare_months": 11,
+   "rotation_months": 36,
+   "calendar": [
+    {
+     "year_in_rotation": 1,
+     "month": 1,
+     "state": "cover",
+     "crop": "red clover",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 2,
+     "state": "cover",
+     "crop": "red clover",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 3,
+     "state": "cover",
+     "crop": "red clover",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 4,
+     "state": "cover",
+     "crop": "red clover",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 5,
+     "state": "crop",
+     "crop": "corn",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 6,
+     "state": "crop",
+     "crop": "corn",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 7,
+     "state": "crop",
+     "crop": "corn",
+     "risk": [
+      "pollination_drought"
+     ]
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 8,
+     "state": "crop",
+     "crop": "corn",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 9,
+     "state": "crop",
+     "crop": "corn",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 10,
+     "state": "crop",
+     "crop": "corn",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 11,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 12,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 1,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 2,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 3,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 4,
+     "state": "bare",
+     "crop": null,
+     "risk": [
+      "spring_erosion"
+     ]
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 5,
+     "state": "crop",
+     "crop": "soybean",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 6,
+     "state": "crop",
+     "crop": "soybean",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 7,
+     "state": "crop",
+     "crop": "soybean",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 8,
+     "state": "crop",
+     "crop": "soybean",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 9,
+     "state": "crop",
+     "crop": "soybean",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 10,
+     "state": "crop",
+     "crop": "soybean",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 11,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 12,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 3,
+     "month": 1,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 3,
+     "month": 2,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 3,
+     "month": 3,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 3,
+     "month": 4,
+     "state": "crop",
+     "crop": "oats",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 3,
+     "month": 5,
+     "state": "crop",
+     "crop": "oats",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 3,
+     "month": 6,
+     "state": "crop",
+     "crop": "oats",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 3,
+     "month": 7,
+     "state": "crop",
+     "crop": "oats",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 3,
+     "month": 8,
+     "state": "cover",
+     "crop": "red clover",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 3,
+     "month": 9,
+     "state": "cover",
+     "crop": "red clover",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 3,
+     "month": 10,
+     "state": "cover",
+     "crop": "red clover",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 3,
+     "month": 11,
+     "state": "cover",
+     "crop": "red clover",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 3,
+     "month": 12,
+     "state": "cover",
+     "crop": "red clover",
+     "risk": []
+    }
+   ],
+   "replay": {
+    "year": 2012,
+    "criteria": {
+     "drought_risk": {
+      "that_year": 30.3,
+      "typical": 13.5
+     },
+     "water_leaving": {
+      "that_year": 196.9,
+      "typical": 193.2
+     },
+     "erosion_exposure": {
+      "that_year": 12.3,
+      "typical": 13.7
+     }
+    }
+   },
+   "card": {
+    "why": "Adds a third year that leaves the field before late-summer heat and breaks the corn–soybean pest cycle.",
+    "evidence": [
+     {
+      "claim": "In Iowa State's Marsden Farm trial, the diverse rotations had about 50% less soil erosion and similar net returns to corn–soybean (2008–2016).",
+      "source": "https://inrc.cals.iastate.edu/marsden-long-term-rotation-study"
+     },
+     {
+      "claim": "Marsden's longer rotations also received periodic cattle manure and far less herbicide, so its results describe whole systems, not rotation length alone.",
+      "source": "https://inrc.cals.iastate.edu/marsden-long-term-rotation-study"
+     }
+    ],
+    "benefits": "Living cover most of the year; red clover supplies nitrogen to the next corn; a break for corn rootworm and soybean cyst nematode.",
+    "gaps": "Oat prices and a local buyer are not in the data. Clover nitrogen credit depends on stand and soil.",
+    "risks": "Needs an oat market within hauling distance and small-grain harvest capacity. Discuss with your agronomist before changing."
+   },
+   "confidence": "medium",
+   "flags": [
+    "Confirm an oat buyer within hauling distance"
+   ]
+  },
+  {
+   "rotation_id": "csw_rye",
+   "name": "Corn–soybean–winter wheat + cereal rye",
+   "tier": null,
+   "is_existing": false,
+   "best_match": false,
+   "sequence": [
+    "corn",
+    "soybean",
+    "winter_wheat"
+   ],
+   "cover_after": [
+    "cereal rye",
+    null,
+    null
+   ],
+   "score": {
+    "mean": 0.641,
+    "p05": 0.591,
+    "p95": 0.691,
+    "p_top": 0.21
+   },
+   "pareto_dominated": false,
+   "criteria": {
+    "drought_risk": {
+     "raw": 19,
+     "unit": "stressed days in sensitive window (worst 10% of years)",
+     "v": 0.636,
+     "contribution": 0.127,
+     "ci": [
+      17.1,
+      20.9
+     ]
+    },
+    "water_leaving": {
+     "raw": 205,
+     "unit": "mm drained per year",
+     "v": 0.712,
+     "contribution": 0.142,
+     "ci": [
+      184.5,
+      225.5
+     ]
+    },
+    "erosion_exposure": {
+     "raw": 12,
+     "unit": "bare-and-wet days per year",
+     "v": 1.0,
+     "contribution": 0.1,
+     "ci": [
+      10.8,
+      13.2
+     ]
+    },
+    "som_proxy": {
+     "raw": 2,
+     "unit": "level 0-3",
+     "v": 0.667,
+     "contribution": 0.067,
+     "ci": [
+      2,
+      2
+     ]
+    },
+    "income": {
+     "raw": 395,
+     "unit": "$ per acre per year (typical margin)",
+     "v": 0.44,
+     "contribution": 0.088,
+     "ci": [
+      355.5,
+      434.5
+     ]
+    },
+    "pest_break": {
+     "raw": 2,
+     "unit": "level 0-3",
+     "v": 0.667,
+     "contribution": 0.067,
+     "ci": [
+      2,
+      2
+     ]
+    },
+    "n_benefit": {
+     "raw": 1,
+     "unit": "level 0-3",
+     "v": 0.5,
+     "contribution": 0.05,
+     "ci": [
+      1,
+      1
+     ]
+    }
+   },
+   "distributions": {
+    "drought_risk": [
+     8.2,
+     9.6,
+     18.3,
+     16.6,
+     4.8,
+     21.0,
+     17.2,
+     21.0,
+     12.3,
+     12.8,
+     8.6,
+     26.9,
+     13.4,
+     22.2,
+     11.0,
+     15.1,
+     5.9,
+     12.3,
+     19.2,
+     8.0,
+     19.6,
+     15.9,
+     9.0,
+     11.7,
+     12.0,
+     14.0,
+     11.6,
+     10.1,
+     12.7,
+     9.1,
+     7.8,
+     29.0,
+     18.7,
+     6.6,
+     14.3,
+     11.0,
+     9.4,
+     18.5,
+     11.7,
+     21.7,
+     10.4,
+     16.2,
+     13.1,
+     10.5,
+     17.2
+    ],
+    "water_leaving": [
+     198.0,
+     232.1,
+     202.9,
+     156.1,
+     200.4,
+     207.3,
+     248.1,
+     164.2,
+     203.2,
+     127.5,
+     234.3,
+     156.3,
+     123.7,
+     202.3,
+     254.8,
+     136.4,
+     156.0,
+     171.6,
+     154.2,
+     222.1,
+     168.7,
+     172.5,
+     231.2,
+     171.0,
+     224.5,
+     161.3,
+     150.5,
+     122.4,
+     288.8,
+     190.6,
+     216.0,
+     203.6,
+     212.2,
+     207.2,
+     290.9,
+     158.2,
+     134.9,
+     159.5,
+     144.9,
+     238.6,
+     241.9,
+     161.7,
+     142.4,
+     189.0,
+     267.6
+    ],
+    "erosion_exposure": [
+     0.7,
+     14.1,
+     7.7,
+     16.2,
+     7.7,
+     10.9,
+     6.0,
+     8.1,
+     17.5,
+     15.3,
+     10.4,
+     8.5,
+     4.4,
+     10.4,
+     11.9,
+     11.7,
+     11.6,
+     7.5,
+     11.7,
+     11.8,
+     17.2,
+     19.5,
+     11.5,
+     8.9,
+     11.7,
+     9.6,
+     9.0,
+     11.8,
+     7.8,
+     14.4,
+     11.6,
+     13.0,
+     11.3,
+     9.1,
+     8.2,
+     11.1,
+     9.8,
+     12.9,
+     12.0,
+     6.6,
+     12.3,
+     6.6,
+     9.5,
+     10.8,
+     3.7
+    ]
+   },
+   "stressed_years": {
+    "n": 5,
+    "of": 45
+   },
+   "bare_months": 9,
+   "rotation_months": 36,
+   "calendar": [
+    {
+     "year_in_rotation": 1,
+     "month": 1,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 2,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 3,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 4,
+     "state": "bare",
+     "crop": null,
+     "risk": [
+      "spring_erosion"
+     ]
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 5,
+     "state": "crop",
+     "crop": "corn",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 6,
+     "state": "crop",
+     "crop": "corn",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 7,
+     "state": "crop",
+     "crop": "corn",
+     "risk": [
+      "pollination_drought"
+     ]
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 8,
+     "state": "crop",
+     "crop": "corn",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 9,
+     "state": "crop",
+     "crop": "corn",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 10,
+     "state": "crop",
+     "crop": "corn",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 11,
+     "state": "cover",
+     "crop": "cereal rye",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 12,
+     "state": "cover",
+     "crop": "cereal rye",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 1,
+     "state": "cover",
+     "crop": "cereal rye",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 2,
+     "state": "cover",
+     "crop": "cereal rye",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 3,
+     "state": "cover",
+     "crop": "cereal rye",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 4,
+     "state": "cover",
+     "crop": "cereal rye",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 5,
+     "state": "crop",
+     "crop": "soybean",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 6,
+     "state": "crop",
+     "crop": "soybean",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 7,
+     "state": "crop",
+     "crop": "soybean",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 8,
+     "state": "crop",
+     "crop": "soybean",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 9,
+     "state": "crop",
+     "crop": "soybean",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 10,
+     "state": "crop",
+     "crop": "winter_wheat",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 11,
+     "state": "crop",
+     "crop": "winter_wheat",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 12,
+     "state": "crop",
+     "crop": "winter_wheat",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 3,
+     "month": 1,
+     "state": "crop",
+     "crop": "winter_wheat",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 3,
+     "month": 2,
+     "state": "crop",
+     "crop": "winter_wheat",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 3,
+     "month": 3,
+     "state": "crop",
+     "crop": "winter_wheat",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 3,
+     "month": 4,
+     "state": "crop",
+     "crop": "winter_wheat",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 3,
+     "month": 5,
+     "state": "crop",
+     "crop": "winter_wheat",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 3,
+     "month": 6,
+     "state": "crop",
+     "crop": "winter_wheat",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 3,
+     "month": 7,
+     "state": "crop",
+     "crop": "winter_wheat",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 3,
+     "month": 8,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 3,
+     "month": 9,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 3,
+     "month": 10,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 3,
+     "month": 11,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 3,
+     "month": 12,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    }
+   ],
+   "replay": {
+    "year": 2012,
+    "criteria": {
+     "drought_risk": {
+      "that_year": 29.0,
+      "typical": 12.7
+     },
+     "water_leaving": {
+      "that_year": 203.6,
+      "typical": 190.6
+     },
+     "erosion_exposure": {
+      "that_year": 13.0,
+      "typical": 10.9
+     }
+    }
+   },
+   "card": {
+    "why": "Winter wheat keeps the field covered through winter and is harvested in July.",
+    "evidence": [
+     {
+      "claim": "[MOCK] Evidence for corn–soybean–wheat in Iowa still to be sourced.",
+      "source": null
+     }
+    ],
+    "benefits": "Least bare soil of the options; harvest work spread between July and autumn.",
+    "gaps": "Wheat disease and yield in central Iowa are not modelled; evidence still to be added.",
+    "risks": "Needs a wheat buyer and timely autumn planting after soybean."
+   },
+   "confidence": "low",
+   "flags": [
+    "Confirm a wheat buyer"
+   ]
+  },
+  {
+   "rotation_id": "cs_rye_before_soy",
+   "name": "Corn–soybean + cereal rye before soybean",
+   "tier": "small_step",
+   "is_existing": false,
+   "best_match": false,
+   "sequence": [
+    "corn",
+    "soybean"
+   ],
+   "cover_after": [
+    "cereal rye",
+    null
+   ],
+   "score": {
+    "mean": 0.573,
+    "p05": 0.523,
+    "p95": 0.623,
+    "p_top": 0.18
+   },
+   "pareto_dominated": false,
+   "criteria": {
+    "drought_risk": {
+     "raw": 23,
+     "unit": "stressed days in sensitive window (worst 10% of years)",
+     "v": 0.455,
+     "contribution": 0.091,
+     "ci": [
+      20.7,
+      25.3
+     ]
+    },
+    "water_leaving": {
+     "raw": 215,
+     "unit": "mm drained per year",
+     "v": 0.673,
+     "contribution": 0.135,
+     "ci": [
+      193.5,
+      236.5
+     ]
+    },
+    "erosion_exposure": {
+     "raw": 19,
+     "unit": "bare-and-wet days per year",
+     "v": 0.867,
+     "contribution": 0.087,
+     "ci": [
+      17.1,
+      20.9
+     ]
+    },
+    "som_proxy": {
+     "raw": 2,
+     "unit": "level 0-3",
+     "v": 0.667,
+     "contribution": 0.067,
+     "ci": [
+      2,
+      2
+     ]
+    },
+    "income": {
+     "raw": 405,
+     "unit": "$ per acre per year (typical margin)",
+     "v": 0.464,
+     "contribution": 0.093,
+     "ci": [
+      364.5,
+      445.5
+     ]
+    },
+    "pest_break": {
+     "raw": 1,
+     "unit": "level 0-3",
+     "v": 0.5,
+     "contribution": 0.05,
+     "ci": [
+      1,
+      1
+     ]
+    },
+    "n_benefit": {
+     "raw": 1,
+     "unit": "level 0-3",
+     "v": 0.5,
+     "contribution": 0.05,
+     "ci": [
+      1,
+      1
+     ]
+    }
+   },
+   "distributions": {
+    "drought_risk": [
+     25.9,
+     16.9,
+     15.6,
+     16.3,
+     11.4,
+     23.8,
+     14.0,
+     16.9,
+     12.5,
+     13.5,
+     9.6,
+     24.8,
+     16.3,
+     23.0,
+     17.3,
+     13.1,
+     15.3,
+     13.9,
+     17.3,
+     15.0,
+     15.5,
+     9.0,
+     12.4,
+     27.2,
+     13.2,
+     10.9,
+     19.3,
+     25.7,
+     8.5,
+     16.0,
+     13.5,
+     23.7,
+     21.7,
+     17.1,
+     17.7,
+     12.7,
+     20.0,
+     14.0,
+     16.4,
+     10.6,
+     10.0,
+     25.3,
+     14.2,
+     19.0,
+     17.0
+    ],
+    "water_leaving": [
+     192.9,
+     189.6,
+     246.5,
+     199.9,
+     207.4,
+     216.1,
+     273.8,
+     249.0,
+     234.1,
+     186.8,
+     145.9,
+     262.5,
+     263.3,
+     208.0,
+     242.1,
+     254.1,
+     256.6,
+     261.1,
+     192.2,
+     290.7,
+     152.7,
+     258.1,
+     239.7,
+     258.7,
+     309.0,
+     289.2,
+     157.7,
+     130.6,
+     255.8,
+     164.2,
+     214.4,
+     257.0,
+     132.8,
+     109.5,
+     228.0,
+     217.2,
+     202.7,
+     216.9,
+     172.0,
+     139.3,
+     206.7,
+     166.4,
+     132.8,
+     240.3,
+     211.9
+    ],
+    "erosion_exposure": [
+     21.4,
+     13.1,
+     15.1,
+     13.0,
+     13.7,
+     20.2,
+     14.3,
+     21.1,
+     21.0,
+     31.2,
+     10.6,
+     24.3,
+     18.5,
+     18.9,
+     10.3,
+     16.2,
+     23.5,
+     18.5,
+     19.5,
+     17.3,
+     25.9,
+     18.9,
+     5.8,
+     14.8,
+     7.2,
+     0.0,
+     15.8,
+     27.0,
+     19.3,
+     12.0,
+     13.4,
+     25.8,
+     19.9,
+     19.3,
+     18.7,
+     19.2,
+     23.8,
+     22.3,
+     20.3,
+     12.7,
+     22.1,
+     14.9,
+     25.6,
+     11.4,
+     18.2
+    ]
+   },
+   "stressed_years": {
+    "n": 6,
+    "of": 45
+   },
+   "bare_months": 6,
+   "rotation_months": 24,
+   "calendar": [
+    {
+     "year_in_rotation": 1,
+     "month": 1,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 2,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 3,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 4,
+     "state": "bare",
+     "crop": null,
+     "risk": [
+      "spring_erosion"
+     ]
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 5,
+     "state": "crop",
+     "crop": "corn",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 6,
+     "state": "crop",
+     "crop": "corn",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 7,
+     "state": "crop",
+     "crop": "corn",
+     "risk": [
+      "pollination_drought"
+     ]
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 8,
+     "state": "crop",
+     "crop": "corn",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 9,
+     "state": "crop",
+     "crop": "corn",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 10,
+     "state": "crop",
+     "crop": "corn",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 11,
+     "state": "cover",
+     "crop": "cereal rye",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 1,
+     "month": 12,
+     "state": "cover",
+     "crop": "cereal rye",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 1,
+     "state": "cover",
+     "crop": "cereal rye",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 2,
+     "state": "cover",
+     "crop": "cereal rye",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 3,
+     "state": "cover",
+     "crop": "cereal rye",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 4,
+     "state": "cover",
+     "crop": "cereal rye",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 5,
+     "state": "crop",
+     "crop": "soybean",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 6,
+     "state": "crop",
+     "crop": "soybean",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 7,
+     "state": "crop",
+     "crop": "soybean",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 8,
+     "state": "crop",
+     "crop": "soybean",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 9,
+     "state": "crop",
+     "crop": "soybean",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 10,
+     "state": "crop",
+     "crop": "soybean",
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 11,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    },
+    {
+     "year_in_rotation": 2,
+     "month": 12,
+     "state": "bare",
+     "crop": null,
+     "risk": []
+    }
+   ],
+   "replay": {
+    "year": 2012,
+    "criteria": {
+     "drought_risk": {
+      "that_year": 23.7,
+      "typical": 16.0
+     },
+     "water_leaving": {
+      "that_year": 257.0,
+      "typical": 216.1
+     },
+     "erosion_exposure": {
+      "that_year": 25.8,
+      "typical": 18.7
+     }
+    }
+   },
+   "card": {
+    "why": "Keeps your two cash crops and covers the soil through the winter after corn.",
+    "evidence": [
+     {
+      "claim": "Iowa State Extension's cover crop recipe recommends cereal rye after corn, going into soybean.",
+      "source": "https://store.extension.iastate.edu/product/15548.pdf"
+     }
+    ],
+    "benefits": "Fewer bare-and-wet days in spring; less water (and nitrate) draining from the field.",
+    "gaps": "Rye growth varies with seeding date and autumn weather; establishment is not modelled yet.",
+    "risks": "Rye uses spring soil water, so the field can start drier in a dry spring. Check termination timing and insurance rules locally."
+   },
+   "confidence": "medium",
+   "flags": [
+    "Check cover-crop termination rules with your crop insurer"
+   ]
+  }
+ ],
+ "removed": [
+  {
+   "rotation_id": "csoaa",
+   "name": "Corn–soybean–oats/alfalfa–alfalfa",
+   "reason": "Needs livestock or a hay buyer"
+  },
+  {
+   "rotation_id": "csoaa_rye",
+   "name": "Corn–soybean–oats/alfalfa–alfalfa + cereal rye",
+   "reason": "Needs livestock or a hay buyer"
+  }
+ ],
+ "robustness": {
+  "recent30_same_top": true,
+  "weighted_same_top": true,
+  "note": "[MOCK] Same top option whichever way past climate is weighted."
+ },
+ "notable_years": {
+  "driest_summers": [
+   2012,
+   1988,
+   2023
+  ],
+  "wettest_springs": [
+   2019,
+   2013,
+   1993
+  ]
+ },
+ "trends": {
+  "last_spring_frost": {
+   "slope_days_per_decade": -1.5,
+   "p_value": 0.1
+  }
+ },
+ "footer": "This tool supports, not replaces, your judgement and local expertise. Discuss any change with your agronomist."
+}
