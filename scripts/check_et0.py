@@ -26,6 +26,6 @@ for name, (lat, lon) in config.EXAMPLE_POINTS.items():
     print("  mean ET0 by month, mm/day:")
     print("   " + "  ".join(f"{m:>4}" for m in range(1, 13)))
     print("   " + "  ".join(f"{v:4.1f}" for v in monthly))
-    annual = et0.groupby(et0.index.year).sum().mean()
+    annual = et0.groupby(et0.index.year).sum(min_count=360).mean()   # skip years without solar data (1981-83)
     rain = df["PRECTOTCORR"].groupby(df.index.year).sum().mean()
     print(f"  mean annual ET0: {annual:.0f} mm   mean annual rain: {rain:.0f} mm")

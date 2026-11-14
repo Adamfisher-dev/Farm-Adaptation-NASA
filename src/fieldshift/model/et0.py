@@ -42,6 +42,13 @@ def pressure_from_elevation(elevation_m):
     return 101.3 * ((293.0 - 0.0065 * z) / 293.0) ** 5.26
 
 
+def elevation_from_pressure(pressure_kpa):
+    """Elevation z [m] from atmospheric pressure [kPa]: FAO-56 eq. 7 solved for z.
+    Used when no elevation is given (POWER's PS is available every day)."""
+    p = np.asarray(pressure_kpa, dtype=float)
+    return (293.0 - 293.0 * (p / 101.3) ** (1.0 / 5.26)) / 0.0065
+
+
 def psychrometric_constant(pressure_kpa):
     """Psychrometric constant gamma [kPa degC-1] from pressure [kPa]. FAO-56 eq. 8."""
     return 0.665e-3 * np.asarray(pressure_kpa, dtype=float)
@@ -69,6 +76,12 @@ def mean_saturation_vapour_pressure(tmax_c, tmin_c):
 def actual_vapour_pressure_from_dewpoint(tdew_c):
     """Actual vapour pressure ea [kPa] from dewpoint [degC]. FAO-56 eq. 14 (preferred method)."""
     return saturation_vapour_pressure(tdew_c)
+
+
+def actual_vapour_pressure_from_rh_minmax(tmax_c, tmin_c, rhmax_pct, rhmin_pct):
+    """Actual vapour pressure ea [kPa] from daily max/min relative humidity [%]. FAO-56 eq. 17."""
+    return (saturation_vapour_pressure(tmin_c) * np.asarray(rhmax_pct, dtype=float) / 100.0
+            + saturation_vapour_pressure(tmax_c) * np.asarray(rhmin_pct, dtype=float) / 100.0) / 2.0
 
 
 def actual_vapour_pressure_from_rhmean(rh_mean_pct, tmax_c, tmin_c):
@@ -119,6 +132,13 @@ def net_longwave_radiation(tmax_c, tmin_c, ea_kpa, rs, rso):
     )
 
 
+def net_radiation(rs, rso, tmax_c, tmin_c, ea_kpa, albedo=GRASS_ALBEDO):
+    """Net radiation Rn = Rns - Rnl [MJ m-2 day-1]. FAO-56 eq. 40. Returns (rn, rns, rnl)."""
+    rns = net_shortwave_radiation(rs, albedo)
+    rnl = net_longwave_radiation(tmax_c, tmin_c, ea_kpa, rs, rso)
+    return rns - rnl, rns, rnl
+
+
 def wind_speed_at_2m(u_z, height_m):
     """Convert wind speed measured at height z [m] to 2 m [m s-1]. FAO-56 eq. 47.
     (POWER's WS2M is already at 2 m, so this is only needed for other sources, e.g. WS10M.)"""
@@ -126,6 +146,20 @@ def wind_speed_at_2m(u_z, height_m):
 
 
 # --- Core equation -----------------------------------------------------------
+def penman_monteith(tmax_c, tmin_c, ea_kpa, u2, rn, pressure_kpa, g=0.0):
+    """FAO-56 eq. 6 given net radiation already computed. Returns ET0 [mm/day] (not clipped).
+    Tmean = (Tmax + Tmin) / 2 (eq. 9); es from Tmax and Tmin (eq. 12)."""
+    tmax = np.asarray(tmax_c, dtype=float)
+    tmin = np.asarray(tmin_c, dtype=float)
+    u2 = np.asarray(u2, dtype=float)
+    tmean = (tmax + tmin) / 2.0
+    gamma = psychrometric_constant(pressure_kpa)
+    delta = slope_vapour_pressure_curve(tmean)
+    vpd = np.maximum(mean_saturation_vapour_pressure(tmax, tmin) - np.asarray(ea_kpa, dtype=float), 0.0)
+    numerator = 0.408 * delta * (np.asarray(rn, dtype=float) - g) + gamma * (900.0 / (tmean + 273.0)) * u2 * vpd
+    return numerator / (delta + gamma * (1.0 + 0.34 * u2))
+
+
 def et0_penman_monteith(
     tmax_c,
     tmin_c,
@@ -159,29 +193,12 @@ def et0_penman_monteith(
     -------
     ET0 [mm day-1], numpy array (or float for scalar input)
     """
-    tmax = np.asarray(tmax_c, dtype=float)
-    tmin = np.asarray(tmin_c, dtype=float)
-    u2 = np.asarray(u2, dtype=float)
-    ea = np.asarray(ea_kpa, dtype=float)
-
-    # FAO-56 uses the mean of Tmax and Tmin as daily mean temperature (eq. 9)
-    tmean = (tmax + tmin) / 2.0
-
     p = pressure_from_elevation(elevation_m) if pressure_kpa is None else np.asarray(pressure_kpa, dtype=float)
-    gamma = psychrometric_constant(p)
-    delta = slope_vapour_pressure_curve(tmean)
-    es = mean_saturation_vapour_pressure(tmax, tmin)
-    vpd = np.maximum(es - ea, 0.0)  # ea > es only through data error; don't let it make ET0 negative
-
     ra = extraterrestrial_radiation(latitude_deg, day_of_year)
     rso = clear_sky_radiation(ra, elevation_m)
-    rns = net_shortwave_radiation(rs)
-    rnl = net_longwave_radiation(tmax, tmin, ea, rs, rso)
-    rn = rns - rnl
-
-    numerator = 0.408 * delta * (rn - soil_heat_flux) + gamma * (900.0 / (tmean + 273.0)) * u2 * vpd
-    denominator = delta + gamma * (1.0 + 0.34 * u2)
-    et0 = numerator / denominator
+    rn, _, _ = net_radiation(rs, rso, tmax_c, tmin_c, ea_kpa)
+    # vapour pressure deficit is floored at 0 inside penman_monteith (ea > es = data error)
+    et0 = penman_monteith(tmax_c, tmin_c, ea_kpa, u2, rn, p, soil_heat_flux)
 
     if clip_negative:
         et0 = np.where(np.isnan(et0), np.nan, np.maximum(et0, 0.0))
@@ -191,11 +208,12 @@ def et0_penman_monteith(
 # --- NASA POWER wrapper ------------------------------------------------------
 def et0_from_power(
     df: pd.DataFrame,
-    latitude_deg: float,
-    elevation_m: float,
+    latitude_deg: float | None = None,
+    elevation_m: float | None = None,
     rs_units: str = "MJ/m^2/day",
     use_power_pressure: bool = True,
     clip_negative: bool = True,
+    lat: float | None = None,
 ) -> pd.Series:
     """Daily ET0 [mm/day] from a NASA POWER daily DataFrame (as made by data/power.py).
 
@@ -208,8 +226,20 @@ def et0_from_power(
               "MJ/m^2/day" (AG community) or "kWh/m^2/day" (RE/SB communities). Never assume;
               read js["parameters"]["ALLSKY_SFC_SW_DWN"]["units"].
 
+    latitude_deg (or lat=, same thing): field / POWER-cell latitude.
+    elevation_m: site elevation [m] (POWER meta geometry.coordinates[2]). If None, it is
+              estimated from the mean of POWER's PS column (FAO-56 eq. 7 inverted).
+
     Days with any missing input return NaN (no silent gap filling here).
     """
+    if latitude_deg is None:
+        latitude_deg = lat
+    if latitude_deg is None:
+        raise TypeError("et0_from_power needs latitude_deg (or lat=).")
+    if elevation_m is None:
+        if "PS" not in df.columns or df["PS"].isna().all():
+            raise ValueError("Give elevation_m, or include POWER's PS column to estimate it.")
+        elevation_m = float(elevation_from_pressure(df["PS"].mean()))
     if not isinstance(df.index, pd.DatetimeIndex):
         raise TypeError("df must have a DatetimeIndex (one row per day).")
 
@@ -278,6 +308,14 @@ def _check_units(tmax, tmin, rs, u2, pressure):
     n_bad = int(np.sum(np.asarray(tmax) < np.asarray(tmin)))
     if n_bad:
         warnings.warn(f"{n_bad} day(s) with Tmax < Tmin - check input data.", stacklevel=3)
+
+
+# --- Short aliases (names used by tests/test_et0.py and scripts/check_et0.py) --------
+sat_vp = saturation_vapour_pressure
+slope_svp = slope_vapour_pressure_curve
+psychrometric = psychrometric_constant
+ea_from_dewpoint = actual_vapour_pressure_from_dewpoint
+ea_from_rh_minmax = actual_vapour_pressure_from_rh_minmax
 
 
 # --- Self-check: FAO-56 Example 18 (Brussels, 6 July) -----------------------
