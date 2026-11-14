@@ -7,7 +7,7 @@ NASA Space Apps Challenge 2026: Field Shift: Adapting Farms with NASA Data.
 python -m venv venv
 venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-python -m streamlit run app.py
+python -m streamlit run app/app.py
 
 ## Data
 - NASA POWER (daily temperature and rainfall)
