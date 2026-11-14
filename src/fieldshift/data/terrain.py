@@ -32,6 +32,13 @@ SLOPE_CLASSES = [(2.0, "A: nearly level (0-2%)"), (5.0, "B: gently sloping (2-5%
                  (9.0, "C: moderately sloping (5-9%)"), (float("inf"), "D+: strongly sloping (9%+)")]
 EROSION_PRONE_P90_PCT = 5.0    # flag when the steeper 10% of the field is over 5 % (starting value, verify)
 
+# SRTM heights carry ~1 m of pixel-to-pixel noise (measured on our Story County tiles:
+# median neighbour difference 1.0 m). Over 30 m cells that alone reads as ~3 % slope,
+# so flat fields looked sloping. Elevation is averaged over SMOOTH_CELLS x SMOOTH_CELLS
+# (~150 m) before computing slope: field-scale slopes stay, pixel noise mostly goes.
+# Raise it to smooth more; 1 = no smoothing.
+SMOOTH_CELLS = 5
+
 
 def _tile_paths(folder: Path = SRTM_DIR):
     paths = []
@@ -90,12 +97,42 @@ def rusle_s_factor(pct):
     return 10.8 * math.sin(theta) + 0.03 if pct < 9 else 16.8 * math.sin(theta) - 0.50
 
 
-def field_slope(field_geom, dem=None, transform=None):
+def smooth_dem(dem, cells=SMOOTH_CELLS):
+    """Moving average over cells x cells, ignoring NaN voids (normalised convolution)."""
+    if cells <= 1:
+        return dem
+    from scipy.ndimage import uniform_filter
+    valid = np.isfinite(dem)
+    total = uniform_filter(np.where(valid, dem, 0.0), cells, mode="nearest")
+    weight = uniform_filter(valid.astype(float), cells, mode="nearest")
+    with np.errstate(invalid="ignore", divide="ignore"):
+        out = total / weight
+    out[~valid] = np.nan
+    return out
+
+
+def _crop(dem, transform, geom, margin_cells):
+    """Window of the DEM around the field (smoothing the whole mosaic would be slow)."""
+    from rasterio.windows import Window, from_bounds
+    from rasterio.windows import transform as window_transform
+    w = from_bounds(*geom.bounds, transform=transform).round_offsets().round_lengths()
+    r0 = max(int(w.row_off) - margin_cells, 0)
+    c0 = max(int(w.col_off) - margin_cells, 0)
+    r1 = min(int(w.row_off + w.height) + margin_cells + 1, dem.shape[0])
+    c1 = min(int(w.col_off + w.width) + margin_cells + 1, dem.shape[1])
+    if r1 <= r0 or c1 <= c0:
+        raise ValueError("Field is outside the downloaded SRTM tiles.")
+    win = Window(c0, r0, c1 - c0, r1 - r0)
+    return dem[r0:r1, c0:c1], window_transform(win, transform)
+
+
+def field_slope(field_geom, dem=None, transform=None, smooth_cells=SMOOTH_CELLS):
     """Slope summary inside a field polygon (shapely, WGS84)."""
     from rasterio.features import geometry_mask
     if dem is None:
         dem, transform = load_dem()
-    slope = slope_percent(dem, transform, field_geom.centroid.y)
+    dem, transform = _crop(dem, transform, field_geom, margin_cells=smooth_cells + 2)
+    slope = slope_percent(smooth_dem(dem, smooth_cells), transform, field_geom.centroid.y)
     inside = ~geometry_mask([field_geom.__geo_interface__], out_shape=dem.shape,
                             transform=transform, all_touched=True)
     values = slope[inside & np.isfinite(slope)]
@@ -109,5 +146,7 @@ def field_slope(field_geom, dem=None, transform=None):
         "erosion_prone": p90 > EROSION_PRONE_P90_PCT,
         "rusle_s": round(rusle_s_factor(mean), 3),
         "n_cells": int(values.size),
-        "source": "NASA SRTM GL1 v003 (1 arc-second, ~30 m)",
+        "source": (f"NASA SRTM GL1 v003 (1 arc-second, ~30 m), elevation averaged over "
+                   f"{smooth_cells}x{smooth_cells} cells to remove SRTM noise"
+                   if smooth_cells > 1 else "NASA SRTM GL1 v003 (1 arc-second, ~30 m)"),
     }

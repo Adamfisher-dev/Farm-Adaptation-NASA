@@ -151,12 +151,12 @@ def _read(folder, cell_id):
 def load_power(lat, lon, allow_download=True):
     """Daily POWER data for the cell containing (lat, lon).
 
-    Order: data/raw/power (full cache) -> sample_data (committed demo copy)
+    Order: data/raw/power (full cache) -> sample_data (committed copy of real POWER downloads)
     -> NASA POWER API (only if allow_download). Downloads are saved to the cache.
     """
     cell = power_cell(lat, lon)
     found, origin = None, None
-    for folder, label in [(config.POWER_DIR, "local cache"), (config.SAMPLE_DIR, "saved demo copy")]:
+    for folder, label in [(config.POWER_DIR, "saved download"), (config.SAMPLE_DIR, "saved download, committed")]:
         found = _read(folder, cell["id"])
         if found:
             origin = label

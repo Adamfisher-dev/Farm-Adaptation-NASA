@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 DATA_RAW = ROOT / "data" / "raw"          # gitignored: full downloads
 POWER_DIR = DATA_RAW / "power"
-SAMPLE_DIR = ROOT / "sample_data"         # committed: copies for demo fields
+SAMPLE_DIR = ROOT / "sample_data"         # committed: saved copies of real downloads (POWER, SMAP, HLS)
 CONTENT_DIR = ROOT / "content"
 
 # ---------------------------------------------------------------------------
@@ -75,6 +75,47 @@ EXPECTED_UNITS = {
 # fetching two nearby points and checking whether their values are identical)
 MERRA2_LAT_STEP = 0.5
 MERRA2_LON_STEP = 0.625
+
+# ---------------------------------------------------------------------------
+# NASA AppEEARS point extractions: SMAP soil moisture and HLS NDVI
+# Product ids, layer names, fill values and quality bits were checked against
+# the AppEEARS API (GET /product/{id}, GET /quality/{id}/{layer}/{value}) on
+# 2026-11-14. Re-check if AppEEARS releases a new version.
+# ---------------------------------------------------------------------------
+APPEEARS_URL = "https://appeears.earthdatacloud.nasa.gov/api"
+APPEEARS_DIR = DATA_RAW / "appeears"      # raw bundles + task ids (gitignored)
+SMAP_DAILY_CSV = SAMPLE_DIR / "smap_daily.csv"   # compact, committed
+HLS_NDVI_CSV = SAMPLE_DIR / "hls_ndvi.csv"       # compact, committed
+
+SMAP_L3 = "SPL3SMP_E.006"                 # enhanced L3 radiometer, 9 km, daily, top ~5 cm
+SMAP_L3_LAYERS = {
+    "am": ("Soil_Moisture_Retrieval_Data_AM_soil_moisture",
+           "Soil_Moisture_Retrieval_Data_AM_retrieval_qual_flag"),
+    "pm": ("Soil_Moisture_Retrieval_Data_PM_soil_moisture_pm",
+           "Soil_Moisture_Retrieval_Data_PM_retrieval_qual_flag_pm"),
+}
+SMAP_L4 = "SPL4SMGP.008"                  # L4 model + assimilation, 9 km, 3-hourly
+SMAP_L4_LAYERS = {
+    "sm_rootzone_l4": "Geophysical_Data_sm_rootzone",   # 0-100 cm, m3/m3
+    "sm_surface_l4": "Geophysical_Data_sm_surface",     # 0-5 cm, m3/m3
+}
+SMAP_FILL = -9999.0
+SMAP_VALID = (0.0, 0.9)                   # m3/m3 (L4 ValidMax 0.9; L3 orig valid 0.02-0.5)
+SMAP_QUAL_RECOMMENDED_BIT = 0             # retrieval_qual_flag bit 0: 0 = recommended quality
+SMAP_START = "2015-04-01"                 # SMAP science record starts 2015-03-31
+
+HLS_PRODUCTS = {                          # product: (red, nir, quality)
+    "HLSL30.020": ("B04", "B05", "Fmask"),    # Landsat 8/9: B05 = NIR
+    "HLSS30.020": ("B04", "B8A", "Fmask"),    # Sentinel-2: B8A = NIR narrow (matches Landsat NIR)
+}
+HLS_FILL = -9999
+HLS_FMASK_FILL = 255
+# Fmask bits: 1 cloud, 2 adjacent to cloud/shadow, 3 cloud shadow, 4 snow/ice,
+# 5 water, 6-7 aerosol level (11 = high). Any of these -> observation dropped.
+HLS_FMASK_BAD_BITS = (1, 2, 3, 4, 5)
+HLS_DROP_HIGH_AEROSOL = True
+HLS_SAMPLE_SPACING_M = 60.0               # 3 x 3 sample points per example field
+HLS_GRID = 3
 
 # ---------------------------------------------------------------------------
 # Snapshot indicator thresholds (starting values: check against Iowa State

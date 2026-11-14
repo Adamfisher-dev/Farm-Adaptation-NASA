@@ -1,7 +1,10 @@
 """Download the field-scale data for Story County into data/raw/ (CLAUDE.md Appendix A).
 
-Run from the repo root:   python scripts/prefetch_field_data.py [ssurgo] [srtm] [cdl]
-(no arguments = all three)
+Run from the repo root:   python scripts/prefetch_field_data.py [ssurgo] [srtm] [cdl] [smap] [hls] [nasa]
+(no arguments = ssurgo srtm cdl; smap and hls are run on request because they queue)
+
+    python scripts/prefetch_field_data.py nasa              # all SMAP + HLS requests at once
+    python scripts/prefetch_field_data.py nasa --wait 60    # keep checking for up to 60 minutes
 
   ssurgo : map-unit attributes from USDA Soil Data Access -> data/raw/ssurgo/ia169_muaggatt.csv
            The POLYGONS are a manual download: websoilsurvey.nrcs.usda.gov -> Download Soils
@@ -9,6 +12,13 @@ Run from the repo root:   python scripts/prefetch_field_data.py [ssurgo] [srtm] 
            data/raw/ssurgo/ (any subfolder is fine; soil.py finds soilmu_a_*.shp).
   srtm   : NASA SRTM GL1 tiles via earthaccess (needs an Earthdata login) -> data/raw/srtm/
   cdl    : USDA CropScape county GeoTIFFs 2008-2025 -> data/raw/cdl/cdl_<year>_19169.tif
+  smap   : NASA SMAP soil moisture at the example points via NASA AppEEARS (Earthdata login)
+           -> data/raw/appeears/smap/ + compact sample_data/smap_daily.csv
+  hls    : NASA HLS NDVI at the example fields (3 x 3 pixels each) via AppEEARS (Earthdata login)
+           -> data/raw/appeears/hls/ + compact sample_data/hls_ndvi.csv
+           AppEEARS queues requests (minutes to hours). All requests are submitted together,
+           then checked together for up to 10 minutes (--wait N to change). Rerun the same
+           command later to download the rest; nothing is submitted twice.
 
 Service URLs and product names are from CLAUDE.md and marked (verify) there.
 """
@@ -19,6 +29,9 @@ from pathlib import Path
 
 import pandas as pd
 import requests
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from fieldshift import config  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 RAW = ROOT / "data" / "raw"
@@ -83,11 +96,92 @@ def cdl_years(first=2008, last=2025):
             print(f"  CDL {year} failed: {err} (fallback: CropScape website, AOI = Story County)")
 
 
+def _appeears_dates(product_id, start):
+    """Request window: later of `start` and the product's first date, to the last full year."""
+    from fieldshift.data import appeears
+    first = appeears.product_info(product_id)["TemporalExtentStart"][:10]
+    return max(start, first), f"{config.END_YEAR}-12-31"
+
+
+def smap_jobs():
+    from fieldshift.data import appeears
+    points = [(name, "smap", lat, lon) for name, (lat, lon) in config.EXAMPLE_POINTS.items()]
+    l3_layers = [lyr for pair in config.SMAP_L3_LAYERS.values() for lyr in pair]
+    l4_layers = list(config.SMAP_L4_LAYERS.values())
+    jobs = []
+    for name, product, layers in [("fieldshift_smap_l3", config.SMAP_L3, l3_layers),
+                                  ("fieldshift_smap_l4", config.SMAP_L4, l4_layers)]:
+        appeears.check_layers(product, layers)
+        start, end = _appeears_dates(product, config.SMAP_START)
+        body = appeears.point_task_body(name, [(product, lyr) for lyr in layers], points, start, end)
+        jobs.append((name, body, config.APPEEARS_DIR / "smap"))
+    return jobs
+
+
+def hls_jobs():
+    from fieldshift.data import appeears, ndvi
+    pts = ndvi.sample_points()
+    jobs = []
+    for product, layers in config.HLS_PRODUCTS.items():
+        appeears.check_layers(product, layers)
+        start, end = _appeears_dates(product, "2013-01-01")
+        name = f"fieldshift_{product.split('.')[0].lower()}"
+        body = appeears.point_task_body(name, [(product, lyr) for lyr in layers], pts, start, end)
+        jobs.append((name, body, config.APPEEARS_DIR / "hls"))
+    return jobs
+
+
+def build_smap():
+    from fieldshift.data import smap
+    daily = smap.build_compact()
+    print(f"SMAP: {len(daily)} point-days -> {config.SMAP_DAILY_CSV}")
+    print(daily.groupby("point_id")[smap.SERIES].median().round(3).to_string())
+    print("  (expect roughly 0.15-0.40 m3/m3 for Iowa soils)")
+
+
+def build_hls():
+    from fieldshift.data import ndvi
+    obs = ndvi.build_compact()
+    print(f"HLS: {len(obs)} clear field-dates -> {config.HLS_NDVI_CSV}")
+    print(obs.groupby(["field", "sensor"])["ndvi"].describe()[["count", "50%", "max"]].round(2).to_string())
+    print("  (expect summer peaks around 0.8-0.9 and winter values around 0.1-0.3)")
+
+
+def appeears_requests(want_smap, want_hls, wait_minutes):
+    """Submit all SMAP/HLS requests at once, wait for them together, then build the
+    compact files for every dataset whose requests have all been downloaded."""
+    from fieldshift.data import appeears
+    groups = {}
+    if want_smap:
+        groups["smap"] = smap_jobs()
+    if want_hls:
+        groups["hls"] = hls_jobs()
+    token = appeears.login()                 # one login; token reused for ~47 h
+    state = appeears.run_all(token, [j for jobs in groups.values() for j in jobs], wait_minutes)
+    for key, build in (("smap", build_smap), ("hls", build_hls)):
+        if key in groups:
+            names = [name for name, _, _ in groups[key]]
+            if all(state.get(n) == "downloaded" for n in names):
+                build()
+            else:
+                print(f"{key.upper()}: not built yet (waiting for {', '.join(n for n in names if state.get(n) != 'downloaded')})")
+
+
 if __name__ == "__main__":
-    steps = sys.argv[1:] or ["ssurgo", "srtm", "cdl"]
+    args = sys.argv[1:]
+    wait = 10
+    if "--wait" in args:                     # --wait N: minutes to keep polling AppEEARS
+        k = args.index("--wait")
+        wait = float(args[k + 1])
+        del args[k:k + 2]
+    steps = set(args or ["ssurgo", "srtm", "cdl"])
+    if "nasa" in steps:                      # all AppEEARS requests at once
+        steps |= {"smap", "hls"}
     if "ssurgo" in steps:
         ssurgo_attributes()
     if "srtm" in steps:
         srtm_tiles()
     if "cdl" in steps:
         cdl_years()
+    if "smap" in steps or "hls" in steps:
+        appeears_requests("smap" in steps, "hls" in steps, wait)
