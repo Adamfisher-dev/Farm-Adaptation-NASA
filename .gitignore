@@ -225,3 +225,7 @@ __marimo__/
 .DS_Store
 .vscode/
 node_modules/
+
+.dodsrc
+.netrc
+_netrc
