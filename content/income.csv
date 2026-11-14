@@ -1,0 +1,9 @@
+crop,role,yield,yield_unit,price,price_low,price_high,cost_per_acre,costshare_per_acre,source_yield,source_price,source_cost,verified,notes
+corn,cash,,bu,,,,,,,,,False,"yield = typical Story County yield for corn following soybean (NASS QuickStats, 5-year average); cost = Iowa State FM 1712 'corn following soybeans', all costs incl. land, USD/acre"
+soybean,cash,,bu,,,,,,,,,False,"yield = typical Story County soybean yield (NASS, 5-year average); cost = FM 1712 'soybeans following corn'"
+oats,cash,,bu,,,,,,,,,False,"grain only; add straw value to price or note it; cost = FM 1712 oats (verify a budget exists, else ISU Ag Decision Maker oats)"
+winter_wheat,cash,,bu,,,,,,,,,False,"Iowa wheat budget / NASS Iowa average (Story County may have no wheat data - say which you used)"
+alfalfa,cash,,ton,,,,,,,,,False,"hay yield in established years (tons/acre, all cuttings); cost = FM 1712 alfalfa production (not establishment); only counted when the farmer has a hay buyer and equipment"
+cereal_rye,cover,,,,,,,,,,,False,"cover crop: cost_per_acre = seed + seeding (+ termination if extra); costshare_per_acre = typical NRCS EQIP / Iowa cover-crop payment (verify current programme)"
+red_clover,underseed,,,,,,,,,,,False,"seed cost when frost-seeded or sown with oats (USD/acre)"
+alfalfa_establishment,underseed,,,,,,,,,,,False,"extra cost of establishing alfalfa under oats (seed + any extra pass), USD/acre"

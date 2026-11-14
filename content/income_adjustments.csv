@@ -1,0 +1,7 @@
+effect,value,unit,source,verified,notes
+corn_after_corn_yield_pct,,percent,,False,"yield change for corn following corn vs corn following soybean (negative, e.g. -10); Iowa State research / FM 1712 'corn following corn' yield"
+corn_after_corn_extra_cost,,usd_per_acre,,False,"extra cost of corn following corn (more N, rootworm control) = FM 1712 corn-after-corn total cost minus corn-after-soybean total cost"
+long_rotation_corn_yield_pct,,percent,,False,"corn yield change in 3-4 year rotations vs corn-soybean; Marsden Farm reported ~+4 % (verify against the Iowa State pages; whole-system result)"
+long_rotation_soybean_yield_pct,,percent,,False,"soybean yield change in 3-4 year rotations; Marsden Farm reported ~+16 % (verify; whole-system result)"
+n_credit_after_legume,,usd_per_acre,,False,"fertiliser saved on corn after alfalfa or red clover; Iowa State nitrogen rate guidelines (N credit lb/acre x N price)"
+rye_before_corn_yield_pct,,percent,,False,"corn yield change after a cereal rye cover (negative or 0 if terminated 10-14 days before planting); Iowa State Extension"

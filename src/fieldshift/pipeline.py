@@ -424,6 +424,15 @@ def run_analysis(lat: float, lon: float, answers: dict | None = None, weights: d
         small_grain_buyer=answers.get("small_grain_buyer", True),
         existing_rotation=existing)
     rotations = {c.name: c.plan for c in cands}
+    income_note, income_ranges = "", {}
+    if income is None:                        # content/income.csv, once it is filled in
+        from fieldshift.model import income as income_mod
+        inc = income_mod.rotation_incomes(rotations)
+        if inc["complete"]:
+            income = inc["income"]
+            income_ranges = {n: income_mod.income_range(p) for n, p in rotations.items()}
+        else:
+            income_note = income_mod.missing_summary(inc)
     out = run_basic(lat, lon, rotations=rotations, allow_download=allow_download, geojson=geojson,
                     overrides=overrides, income=income, profile=prof)
     out["baseline"] = cands[0].name if cands[0].name in out["tables"] else out["baseline"]
@@ -452,5 +461,6 @@ def run_analysis(lat: float, lon: float, answers: dict | None = None, weights: d
         "notable_years": out["notable_years"],
         "flags": {n: by_name[n].flags for n in by_name},
         "dropped_criteria": robust["dropped"],
+        "income": {"usd_per_acre": income or {}, "ranges": income_ranges, "note": income_note},
         "run": out,                      # everything else (tables, weather, ...) for charts
     }
