@@ -1,34 +1,41 @@
-import requests
-import pandas as pd
-import streamlit as st
+import sys
+from pathlib import Path
+
 import folium
+import streamlit as st
 from streamlit_folium import st_folium
+
+# Make src/ importable when run as:  streamlit run app/app.py
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from fieldshift import pipeline                      # noqa: E402
+from fieldshift.data.power import power_cell         # noqa: E402
 
 IOWA_BOUNDS = {"min_lat": 40.38, "max_lat": 43.50, "min_lon": -96.64, "max_lon": -90.14}
 IOWA_CENTRE = (42.03, -93.62)
+
+SLIDER_LABELS = {
+    "water_quality": "Water quality",
+    "soil_health": "Soil health",
+    "drought": "Drought resilience",
+    "income": "Income",
+    "pests": "Pest resilience",
+}
+
 
 def in_iowa(lat, lon):
     b = IOWA_BOUNDS
     return b["min_lat"] <= lat <= b["max_lat"] and b["min_lon"] <= lon <= b["max_lon"]
 
-@st.cache_data
-def get_power(lat, lon, start=1981, end=2024):
-    url = "https://power.larc.nasa.gov/api/temporal/daily/point"
-    params = {
-        "parameters": "T2M,T2M_MAX,T2M_MIN,PRECTOTCORR,GWETTOP,GWETROOT",
-        "community": "AG",
-        "latitude": lat,
-        "longitude": lon,
-        "start": f"{start}0101",
-        "end": f"{end}1231",
-        "format": "JSON",
-    }
-    r = requests.get(url, params=params, timeout=60)
-    r.raise_for_status()
-    df = pd.DataFrame(r.json()["properties"]["parameter"])
-    df.index = pd.to_datetime(df.index, format="%Y%m%d")
-    return df.where(df != -999)
 
+@st.cache_data(show_spinner=False)
+def run_for_cell(cell_id, lat, lon, rotation_names):
+    """Cached per POWER cell + rotation set: every field in a cell has the same weather."""
+    rotations = {n: pipeline.ROTATIONS[n] for n in rotation_names}
+    return pipeline.run_basic(lat, lon, rotations=rotations)
+
+
+st.set_page_config(page_title="Field Shift", layout="wide")
 st.title("Field Shift")
 
 # Sidebar: priorities
@@ -60,7 +67,7 @@ current_crops = []
 if open_to_new == "No":
     current_crops = st.sidebar.multiselect(
         "Which crops do you grow now?",
-        ["Corn", "Soybean", "Oats", "Wheat", "Alfalfa"],
+        ["Corn", "Soybean", "Oats", "Winter wheat", "Alfalfa"],
         default=["Corn", "Soybean"],
     )
 
@@ -84,6 +91,14 @@ folium.Rectangle(
             [IOWA_BOUNDS["max_lat"], IOWA_BOUNDS["max_lon"]]],
     color="green", fill=False, weight=2,
 ).add_to(m)
+
+cell = power_cell(st.session_state.lat, st.session_state.lon)
+lon_min, lat_min, lon_max, lat_max = cell["bounds"]
+folium.Rectangle(
+    bounds=[[lat_min, lon_min], [lat_max, lon_max]],
+    color="orange", fill=True, fill_opacity=0.1, weight=1,
+    tooltip="NASA POWER weather cell (same weather everywhere inside)",
+).add_to(m)
 folium.Marker([st.session_state.lat, st.session_state.lon]).add_to(m)
 map_data = st_folium(m, height=400, width=700)
 
@@ -97,17 +112,62 @@ if map_data and map_data.get("last_clicked"):
         st.rerun()
 
 lat, lon = st.session_state.lat, st.session_state.lon
-st.write(f"Selected: {lat}, {lon}")
+st.write(f"Selected: {lat}, {lon}  (weather cell {cell['id']})")
 
-# Everything the engine will need
-farmer = {
-    "lat": lat,
-    "lon": lon,
-    "want_cover": want_cover == "Yes",
-    "hay_buyer": hay_buyer == "Yes",
-    "hay_equipment": hay_equipment == "Yes",
-    "open_to_new": open_to_new == "Yes",
-    "current_crops": current_crops,
-    "weights": weights,
-}
-st.write(farmer)  # debug: remove once the engine is wired in
+# Run the model
+allowed = pipeline.filter_rotations(
+    want_cover=want_cover == "Yes",
+    hay_buyer=hay_buyer == "Yes",
+    hay_equipment=hay_equipment == "Yes",
+    open_to_new=open_to_new == "Yes",
+    current_crops=current_crops if open_to_new == "No" else None,
+)
+
+try:
+    with st.spinner("Loading NASA POWER weather and running the water model "
+                    "(first time for a new area downloads ~45 years of data)..."):
+        out = run_for_cell(cell["id"], lat, lon, tuple(allowed))
+except Exception as e:  # network / API errors: show them instead of crashing
+    st.error(f"Could not load data for this location: {e}")
+    st.stop()
+
+st.caption(
+    f"Weather: NASA POWER, {out['loaded_from']}, {out['years']['weather'][0]}-{out['years']['weather'][1]}. "
+    f"Water model {out['years']['water_model'][0]}-{out['years']['water_model'][1]}. "
+    f"Soil is a placeholder (AWC {out['soil']['awc_mm_per_m']:.0f} mm/m, tile-drained) until SSURGO is added."
+)
+for w in out["unit_warnings"]:
+    st.warning(w)
+
+tab_rank, tab_climate = st.tabs(["Rotations", "Climate snapshot"])
+
+with tab_rank:
+    scores = pipeline.basic_scores(out["water"], weights)
+    st.subheader("Basic ranking")
+    st.caption(
+        "0.5 = same as Corn-Soybean; higher is better. Uses only the priorities the water "
+        "model covers (drought, water quality, soil cover). Income and pests are not scored yet."
+    )
+    show = scores.rename(columns={**SLIDER_LABELS, "score": "Score"})
+    st.dataframe(show.style.format("{:.2f}"), width="stretch")
+    st.bar_chart(scores.drop(columns="score"))
+
+    st.subheader("Water model results (mean per year)")
+    labels = {c: f"{lab} [{unit}]" for c, (lab, unit, _) in pipeline.WATER_COLUMNS.items()}
+    st.dataframe(out["water"].rename(columns=labels).style.format("{:.1f}"), width="stretch")
+
+with tab_climate:
+    st.subheader("Recent climate and trend")
+    rows = []
+    for key, s in out["snapshot"].items():
+        rows.append({
+            "Indicator": s["label"],
+            "Unit": s["unit"],
+            f"Mean {s['recent_years'][0]}-{s['recent_years'][1]}": s["recent_mean"],
+            "Range": f"{s['recent_min']} to {s['recent_max']}",
+            "Trend per decade": s.get("trend_per_decade"),
+            "p-value": s.get("p_value"),
+        })
+    st.dataframe(rows, width="stretch")
+    st.line_chart(out["yearly"][["growing_season_rain_mm"]])
+    st.write("Hard years:", out["notable_years"])

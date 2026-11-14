@@ -1,0 +1,4 @@
+soil_class,label,awc_mm_per_m,tile_drained_default,hydrologic_group,source,notes
+silty_clay_loam_poorly_drained,"Heavy, poorly drained (e.g. Webster-type), usually tiled",200,True,C/D,"Approximate typical value for central Iowa till-plain soils; replace with SSURGO aws0100wta for the field (verify)","Farmer fallback when SSURGO is not used"
+loam_well_drained,"Loam, well drained (e.g. Clarion-type)",170,False,B,"Approximate typical value (verify against SSURGO)","Farmer fallback"
+sandy_loam,"Lighter, drains fast",120,False,A,"Approximate typical value (verify against SSURGO)","Farmer fallback"

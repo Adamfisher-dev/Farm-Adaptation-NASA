@@ -1,0 +1,8 @@
+crop,kind,kc_ini,kc_mid,kc_end,l_ini,l_dev,l_mid,l_late,root_max_m,p,plant_md,harvest_md,sensitive_start_md,sensitive_end_md,greenup_md,dormancy_md,kc_dormant,source,verified
+corn,summer_annual,0.3,1.2,0.35,30,40,50,30,1.0,0.55,05-01,10-15,07-10,07-31,,,,"FAO-56 T11/T12/T22 (maize, grain; Kc_end 0.35 = dry harvest); Iowa dates approx.; pollination window approx.",False
+soybean,summer_annual,0.4,1.15,0.5,20,35,60,25,0.6,0.5,05-15,10-05,08-01,08-31,,,,"FAO-56 T11 (Central USA, May)/T12/T22; Iowa dates approx.; pod-fill window approx.",False
+oats,summer_annual,0.3,1.15,0.25,20,25,60,30,1.0,0.55,04-01,07-15,,,,,,FAO-56 T11 (spring small grains)/T12/T22; Iowa dates approx.,False
+winter_wheat,winter_annual,0.4,1.15,0.25,160,75,75,25,1.0,0.55,10-01,07-10,,,,,,"FAO-56 T11 (winter wheat, Idaho Oct)/T12/T22; Iowa dates approx.",False
+cereal_rye,cover,0.4,1.15,0.25,160,75,75,25,1.0,0.55,,,,,,,,NOT IN FAO-56: winter small-grain (wheat) values used as proxy - information gap,False
+red_clover,cover,0.4,0.9,0.85,10,30,30,10,0.6,0.5,,,,,04-01,10-31,0.4,"Red clover not in FAO-56: clover hay (berseem, averaged) Kc used as proxy; stage lengths, green-up/dormancy and dormant Kc PLACEHOLDER",False
+alfalfa,perennial,0.4,0.95,0.9,10,30,25,10,1.0,0.55,,,,,04-01,10-31,0.4,"FAO-56 T12 (alfalfa hay, averaged for cuttings)/T11 (1st cutting cycle)/T22; green-up/dormancy dates and dormant Kc PLACEHOLDER",False
