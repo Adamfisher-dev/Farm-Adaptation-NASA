@@ -29,6 +29,7 @@ from fieldshift.data import field as field_mod
 from fieldshift.data.power import load_power
 from fieldshift.model import rotations as rot_mod
 from fieldshift.model import scoring
+from fieldshift.model import trends as trends_mod
 from fieldshift.model.et0 import et0_from_power
 from fieldshift.model.indicators import notable_years, snapshot, yearly_indicators
 from fieldshift.model.water_balance import simulate_rotation
@@ -129,7 +130,8 @@ def field_profile(lat, lon, geojson=None, overrides=None):
 
 # --- Run -------------------------------------------------------------------------------------------
 def run_basic(lat, lon, rotations=None, awc_mm_per_m=None, tile_drained=None, allow_download=True,
-              geojson=None, overrides=None, use_runoff=False, income=None, profile=None):
+              geojson=None, overrides=None, use_runoff=False, income=None, profile=None,
+              detrend_temperature=False):
     """Everything the app shows, as plain Python / pandas objects.
 
     Soil water capacity, tile drainage and slope come from the field profile (SSURGO/SRTM)
@@ -153,6 +155,17 @@ def run_basic(lat, lon, rotations=None, awc_mm_per_m=None, tile_drained=None, al
         baseline = BASELINE
         rotations = {BASELINE: ROTATIONS[BASELINE], **rotations}
     df, meta, et0 = load_weather(lat, lon, allow_download)
+    detrend_report = None
+    model_df = df
+    if detrend_temperature:            # playbook 6.9: past years at today's temperatures (water model only)
+        model_df, detrend_report = trends_mod.detrend_temperature(
+            df.loc[str(config.WATER_START_YEAR):str(config.WATER_END_YEAR)], end_year=config.WATER_END_YEAR)
+        geom = meta.get("geometry") or {}
+        coords = geom.get("coordinates") or []
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            et0 = et0_from_power(model_df, meta["cell"]["centre"][0], coords[2] if len(coords) > 2 else None,
+                                 rs_units=meta.get("units", {}).get("ALLSKY_SFC_SW_DWN", "MJ/m^2/day"))
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         prof = profile or field_profile(lat, lon, geojson, overrides)
@@ -167,7 +180,7 @@ def run_basic(lat, lon, rotations=None, awc_mm_per_m=None, tile_drained=None, al
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         for name, plan in rotations.items():
-            t = simulate_rotation(plan, df["PRECTOTCORR"], et0, awc, tiled, start, end,
+            t = simulate_rotation(plan, model_df["PRECTOTCORR"], et0, awc, tiled, start, end,
                                   hydrologic_group=hsg, rotation_id=name)
             tables[name] = t
             rows.append({"rotation": name, **t[list(WATER_COLUMNS)].mean().to_dict()})
@@ -191,7 +204,9 @@ def run_basic(lat, lon, rotations=None, awc_mm_per_m=None, tile_drained=None, al
         "yearly": yearly,
         "water": water,
         "tables": tables,                 # rotation x year table per rotation (bootstrap, replay)
-        "weather": df,                    # daily NASA POWER (validation, charts)
+        "weather": df,                    # daily NASA POWER as recorded (validation, charts)
+        "trends": trends_mod.climate_trends(df),   # per-indicator trend table with sentences (raw weather)
+        "detrend": detrend_report,        # None unless detrend_temperature=True
         "et0": et0,                       # daily reference ET, mm/day
         "criteria_raw": criteria_raw,     # raw criterion values in real units
         "ordinal_scores": ordinal,        # 0-3 literature scores per rotation (rotations.py)
@@ -469,6 +484,7 @@ def run_analysis(lat: float, lon: float, answers: dict | None = None, weights: d
         else:
             income_note = income_mod.missing_summary(inc)
     out = run_basic(lat, lon, rotations=rotations, allow_download=allow_download, geojson=geojson,
+                    detrend_temperature=bool(answers.get("detrend_temperature", False)),
                     overrides=overrides, income=income, profile=prof)
     out["baseline"] = cands[0].name if cands[0].name in out["tables"] else out["baseline"]
 
@@ -493,6 +509,11 @@ def run_analysis(lat: float, lon: float, answers: dict | None = None, weights: d
         "replay": replay(out, year),
         "validation": validate(out),
         "snapshot": out["snapshot"],
+        "trends": out["trends"],
+        "detrend": out["detrend"],
+        "drought_trend": trends_mod.result_trend(
+            out["tables"][out["baseline"]], "drought_deficit_mm",
+            "Water missed by your current rotation at its sensitive stage", "mm"),
         "notable_years": out["notable_years"],
         "flags": {n: by_name[n].flags for n in by_name},
         "dropped_criteria": robust["dropped"],

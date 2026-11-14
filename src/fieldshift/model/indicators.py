@@ -107,13 +107,9 @@ def trend(series):
 
     The p-value assumes years are independent; treat it as a guide, not proof.
     """
-    s = series.dropna()
-    if len(s) < 10:
-        return {"trend_per_decade": np.nan, "p_value": np.nan, "n_years": int(len(s))}
-    years = s.index.values.astype(float)
-    slope = stats.theilslopes(s.values, years)[0]
-    p_value = stats.kendalltau(years, s.values).pvalue
-    return {"trend_per_decade": slope * 10, "p_value": p_value, "n_years": int(len(s))}
+    from fieldshift.model.trends import trend as _trend      # one trend method for the whole tool
+    t = _trend(series)
+    return {"trend_per_decade": t["trend_per_decade"], "p_value": t["p_value"], "n_years": int(t["n_years"])}
 
 
 # ---------------------------------------------------------------------------
