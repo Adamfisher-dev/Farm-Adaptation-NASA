@@ -85,11 +85,19 @@ if "lat" not in st.session_state:
 
 # Sidebar: pick a field ------------------------------------------------------------------------------------
 st.sidebar.header("1. Pick a field")
-example = st.sidebar.selectbox("Jump to an example field (Story County)",
-                               ["-"] + list(config.EXAMPLE_POINTS), index=0)
-if example != "-" and tuple(config.EXAMPLE_POINTS[example]) != (st.session_state.lat, st.session_state.lon):
-    st.session_state.lat, st.session_state.lon = config.EXAMPLE_POINTS[example]
-    st.session_state.result = None
+def _jump_to_example():
+    # Runs only when the dropdown CHANGES. (Checking it on every rerun fought with map clicks: the
+    # dropdown moved the field back, the map reported the click again -> endless reruns, dimmed page.)
+    name = st.session_state.example
+    if name != "-":
+        st.session_state.lat, st.session_state.lon = config.EXAMPLE_POINTS[name]
+        st.session_state.result = None
+
+
+if st.session_state.pop("reset_example", False):     # must happen before the widget is drawn
+    st.session_state.example = "-"
+st.sidebar.selectbox("Jump to an example field (Story County)", ["-"] + list(config.EXAMPLE_POINTS),
+                     key="example", on_change=_jump_to_example)
 st.sidebar.caption("...or click the map.")
 lat, lon = st.session_state.lat, st.session_state.lon
 
@@ -162,14 +170,20 @@ with left:
     folium.Rectangle(bounds=[[miny, minx], [maxy, maxx]], color="yellow", weight=2,
                      tooltip="The field analysed (~400 m x 400 m)").add_to(m)
     map_data = st_folium(m, height=420, use_container_width=True, returned_objects=["last_clicked"])
-    if map_data and map_data.get("last_clicked"):
-        new = (round(map_data["last_clicked"]["lat"], 5), round(map_data["last_clicked"]["lng"], 5))
-        if not in_iowa(*new):
-            st.warning("That's outside Iowa. Pick a field inside Iowa.")
-        elif new != (lat, lon):
-            st.session_state.lat, st.session_state.lon = new
-            st.session_state.result = None
-            st.rerun()
+    click = (map_data or {}).get("last_clicked")
+    if click:
+        new = (round(click["lat"], 5), round(click["lng"], 5))
+        # act on each click once: the map keeps reporting its last click on every rerun, which would
+        # otherwise undo a later dropdown choice (and could loop)
+        if new != st.session_state.get("handled_click"):
+            st.session_state.handled_click = new
+            if not in_iowa(*new):
+                st.warning("That's outside Iowa. Pick a field inside Iowa.")
+            elif new != (lat, lon):
+                st.session_state.lat, st.session_state.lon = new
+                st.session_state.result = None
+                st.session_state.reset_example = True  # dropdown no longer describes the field (reset next run)
+                st.rerun()
 
 with right:
     st.subheader("This field")
