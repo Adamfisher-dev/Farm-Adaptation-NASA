@@ -219,7 +219,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-data/
+/data/
 *.nc
 *.tif
 .DS_Store

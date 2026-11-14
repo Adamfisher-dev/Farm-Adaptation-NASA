@@ -39,6 +39,11 @@ EXAMPLE_POINTS = {                         # from CLAUDE.md, Appendix A
 START_YEAR = 1981
 END_YEAR = 2025          # last complete year; POWER advises ending trend work
                          # about 2 months behind real time
+# Water model (ET0 -> water balance) needs solar radiation, and POWER's
+# ALLSKY_SFC_SW_DWN is -999 for 1981-1983 (solar record starts 1984).
+# Snapshot indicators (temperature, rain) still use START_YEAR.
+WATER_START_YEAR = 1984
+WATER_END_YEAR = END_YEAR
 RECENT_YEARS = 15        # snapshot "recent climate" window
 
 # ---------------------------------------------------------------------------
