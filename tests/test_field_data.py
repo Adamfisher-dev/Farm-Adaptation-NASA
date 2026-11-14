@@ -123,3 +123,21 @@ def test_soil_from_soil_data_access_rows():
     assert prof.slope_pct == pytest.approx(2.0) and prof.likely_tiled
     assert prof.hydrologic_group == "C/D" and "Soil Data Access" in prof.source
     assert prof.data_coverage == pytest.approx(1.0, abs=0.01) and not prof.warnings
+
+
+def test_slope_uses_soil_survey_with_srtm_as_cross_check(monkeypatch):
+    fld = field.field_geometry(point=(LAT, LON))
+    prof = soil.fallback_profile("loam_well_drained")
+    prof.slope_pct, prof.source = 7.5, "USDA SSURGO (test)"
+    monkeypatch.setattr(soil, "field_soil_profile", lambda geom: prof)
+    srtm = {"slope_pct_mean": 5.2, "slope_pct_p90": 8.6, "slope_class": "C: moderately sloping (5-9%)",
+            "erosion_prone": True, "rusle_s": 0.6, "source": "NASA SRTM (test)"}
+    monkeypatch.setattr(terrain, "field_slope", lambda geom: srtm)
+    monkeypatch.setattr(cdl, "available_years", lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError("none")))
+    sl = field.build_field_profile(fld).slope
+    assert sl["slope_pct_mean"] == 7.5 and sl["rusle_s"] == pytest.approx(terrain.rusle_s_factor(7.5), abs=1e-3)
+    assert sl["srtm_slope_pct_mean"] == 5.2 and sl["srtm_agrees"] and sl["erosion_prone"]
+
+    prof.slope_pct = None                                  # no survey slope -> SRTM is used
+    sl = field.build_field_profile(fld).slope
+    assert sl["slope_pct_mean"] == 5.2 and "SRTM" in sl["source"]

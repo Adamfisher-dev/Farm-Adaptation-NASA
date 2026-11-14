@@ -94,27 +94,39 @@ def build_field_profile(geom, overrides=None):
     sources["soil"] = s.source
     warnings += s.warnings
 
-    # slope
+    # slope: the soil survey's map-unit slope is used for scoring; NASA SRTM is kept as a
+    # cross-check. On the gentle Des Moines Lobe, SRTM's ~1 m height noise is as large as the
+    # real slope differences (example fields 2026-11-14: SRTM read ~5 % raw on flat and sloping
+    # fields alike, 2-3 % smoothed, while SSURGO gave 1.8 % and 7.5 %), so SSURGO separates
+    # flat from sloping fields better at field scale. SRTM is used only when SSURGO has no slope.
     try:
-        sl = terrain.field_slope(geom)
-        sources["slope"] = sl["source"]
+        srtm = terrain.field_slope(geom)
+        srtm_error = None
     except (FileNotFoundError, ValueError) as err:
-        soil_slope = getattr(s, "slope_pct", None)
-        if soil_slope is not None:
-            # fall back to SSURGO's area-weighted representative slope (slopegradwta): coarser than
-            # SRTM (map-unit average, no steepest-10 % value), but measured for these soils
-            sl = {"slope_pct_mean": soil_slope, "slope_pct_p90": None,
-                  "slope_class": terrain.slope_class(soil_slope),
-                  "erosion_prone": soil_slope >= SOIL_SLOPE_EROSION_PCT,
-                  "rusle_s": round(terrain.rusle_s_factor(soil_slope), 3),
-                  "source": "USDA SSURGO map-unit slope (slopegradwta), area-weighted - SRTM not available"}
-            sources["slope"] = sl["source"]
-            warnings.append("Slope taken from the soil survey (elevation data not available); "
-                            "please confirm whether the field is sloping.")
-        else:
-            sl = {"slope_pct_mean": None, "slope_pct_p90": None, "slope_class": "unknown",
-                  "erosion_prone": False, "rusle_s": None, "source": "not available"}
-            warnings.append(f"Elevation data not available ({err}). Please say whether the field is sloping.")
+        srtm, srtm_error = None, err
+    soil_slope = getattr(s, "slope_pct", None)
+    if soil_slope is not None:
+        sl = {"slope_pct_mean": soil_slope, "slope_pct_p90": None,
+              "slope_class": terrain.slope_class(soil_slope),
+              "erosion_prone": soil_slope >= SOIL_SLOPE_EROSION_PCT,
+              "rusle_s": round(terrain.rusle_s_factor(soil_slope), 3),
+              "source": "USDA SSURGO map-unit slope (slopegradwta), area-weighted"}
+        if srtm:
+            sl.update({"srtm_slope_pct_mean": srtm["slope_pct_mean"],
+                       "srtm_slope_pct_p90": srtm["slope_pct_p90"],
+                       "srtm_slope_class": srtm["slope_class"],
+                       "srtm_agrees": srtm["slope_class"] == sl["slope_class"],
+                       "srtm_source": srtm["source"]})
+            sl["source"] += f"; cross-checked with {srtm['source']}"
+    elif srtm:
+        sl = srtm
+        warnings.append("Slope from NASA SRTM elevation only (no soil-survey slope here); "
+                        "please confirm whether the field is sloping.")
+    else:
+        sl = {"slope_pct_mean": None, "slope_pct_p90": None, "slope_class": "unknown",
+              "erosion_prone": False, "rusle_s": None, "source": "not available"}
+        warnings.append(f"Elevation data not available ({srtm_error}). Please say whether the field is sloping.")
+    sources["slope"] = sl["source"]
 
     # crop history
     try:
