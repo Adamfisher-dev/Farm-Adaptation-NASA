@@ -219,9 +219,14 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-/data/
+
+# Raw downloads: SRTM, CDL and POWER are committed so the team has them (44 MB).
+# AppEEARS holds the personal login token (token.json) and queue state: never commit.
+/data/raw/appeears/
+
 *.nc
 *.tif
+!data/raw/cdl/*.tif
 .DS_Store
 .vscode/
 node_modules/
