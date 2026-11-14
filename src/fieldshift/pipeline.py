@@ -131,7 +131,7 @@ def field_profile(lat, lon, geojson=None, overrides=None):
 # --- Run -------------------------------------------------------------------------------------------
 def run_basic(lat, lon, rotations=None, awc_mm_per_m=None, tile_drained=None, allow_download=True,
               geojson=None, overrides=None, use_runoff=False, income=None, profile=None,
-              detrend_temperature=False):
+              detrend_temperature=False, income_ranges=None):
     """Everything the app shows, as plain Python / pandas objects.
 
     Soil water capacity, tile drainage and slope come from the field profile (SSURGO/SRTM)
@@ -211,6 +211,7 @@ def run_basic(lat, lon, rotations=None, awc_mm_per_m=None, tile_drained=None, al
         "criteria_raw": criteria_raw,     # raw criterion values in real units
         "ordinal_scores": ordinal,        # 0-3 literature scores per rotation (rotations.py)
         "extra": extra,                   # 'data' criteria per rotation (income)
+        "income_ranges": income_ranges or {},   # {rotation: {low, mid, high}} for price uncertainty
         "baseline": baseline,
     }
 
@@ -244,12 +245,15 @@ def robust_scores(out: dict, weights: dict, n_boot: int = 1000, window: str = "a
     baseline = baseline or out["baseline"]
     ordinal = out["ordinal_scores"]
     slope = out["field"]["slope"].get("rusle_s")
+    samples = income_price_samples(out, n_boot)
     res = bootstrap.run_bootstrap(out["tables"], baseline, sliders, ordinal, slope,
-                                  n_boot=n_boot, window=window, extra=out.get("extra"))
+                                  n_boot=n_boot, window=window, extra=out.get("extra"), extra_samples=samples)
     res["stressed_years"] = {n: bootstrap.stressed_years(t) for n, t in out["tables"].items()}
     if with_robustness:
         res["robustness"] = bootstrap.robustness(out["tables"], baseline, sliders, ordinal, slope,
-                                                 extra=out.get("extra"))
+                                                 extra=out.get("extra"),
+                                                 extra_samples=income_price_samples(out, 500))
+    res["price_uncertainty"] = samples is not None
     return res
 
 
@@ -485,13 +489,14 @@ def run_analysis(lat: float, lon: float, answers: dict | None = None, weights: d
             income_note = income_mod.missing_summary(inc)
     out = run_basic(lat, lon, rotations=rotations, allow_download=allow_download, geojson=geojson,
                     detrend_temperature=bool(answers.get("detrend_temperature", False)),
-                    overrides=overrides, income=income, profile=prof)
+                    overrides=overrides, income=income, profile=prof, income_ranges=income_ranges)
     out["baseline"] = cands[0].name if cands[0].name in out["tables"] else out["baseline"]
 
     robust = robust_scores(out, weights, n_boot=n_boot)
     point = score_details(out, weights)
     ranking = list(robust["summary"].index)
     picks = top_options(out, ranking)
+    verdict_info = verdict(robust, out["baseline"])
     by_name = {c.name: c for c in cands}
     year = replay_year or 2012
     return {
@@ -500,6 +505,7 @@ def run_analysis(lat: float, lon: float, answers: dict | None = None, weights: d
         "candidates": {c.name: c.to_dict() for c in cands},
         "removed": removed,
         "shown": [{"name": out["baseline"], "tier": "current"}] + picks,
+        "verdict": verdict_info,          # is any option really better than the current rotation?
         "ranking": robust["summary"],
         "point_scores": point,
         "criteria_raw": out["criteria_raw"],
@@ -520,3 +526,52 @@ def run_analysis(lat: float, lon: float, answers: dict | None = None, weights: d
         "income": {"usd_per_acre": income or {}, "ranges": income_ranges, "note": income_note},
         "run": out,                      # everything else (tables, weather, ...) for charts
     }
+
+
+# --- Price uncertainty and the overall verdict ----------------------------------------------------------
+PRICE_SEED = 11
+
+
+def income_price_samples(out: dict, n_boot: int, seed: int = PRICE_SEED):
+    """Per-replicate income for every rotation: one price level u ~ Uniform(0, 1) per replicate,
+    shared by all crops and rotations (crop prices tend to move together), mapped to
+    price_low (u=0) -> price (u=0.5) -> price_high (u=1). Income is linear in each crop's price,
+    so it is interpolated from the rotation's low / mid / high income. Costs stay fixed.
+    Assumption (document on the evidence page): prices anywhere in the recent low-high range are
+    equally likely. Returns None when income ranges are not available for every rotation."""
+    ranges = out.get("income_ranges") or {}
+    if not ranges or any(n not in ranges for n in out["tables"]):
+        return None
+    import numpy as np
+    u = np.random.default_rng(seed).uniform(size=n_boot)
+    return {n: {"income_usd_per_acre": np.interp(u, [0.0, 0.5, 1.0],
+                                                 [ranges[n]["low"], ranges[n]["mid"], ranges[n]["high"]])}
+            for n in out["tables"]}
+
+
+def verdict(robust: dict, baseline: str) -> dict:
+    """Is any option really better than the current rotation? (playbook 4: 'if the existing rotation
+    scores best, say so honestly'). Uses the bootstrap replicates: share of plausible years / weightings /
+    prices in which the best alternative beats the current rotation."""
+    import numpy as np
+    summary, scores, rids = robust["summary"], robust["scores"], robust["rotations"]
+    alts = [n for n in summary.index if n != baseline]
+    if not alts:
+        return {"kind": "only_current", "message": "No alternative rotation fits the farm's constraints."}
+    best = alts[0]
+    p_better = float(np.mean(scores[:, rids.index(best)] > scores[:, rids.index(baseline)]))
+    if summary.index[0] == baseline or p_better < 0.5:
+        kind = "current_best"
+        msg = ("For your priorities, your current rotation scores as well as or better than every option: "
+               f"the closest one ({best}) beats it in only {p_better:.0%} of plausible years, prices and "
+               "weightings. The options below are shown for comparison - each has trade-offs worth "
+               "discussing with your agronomist.")
+    elif p_better < 0.8:
+        kind = "close_call"
+        msg = (f"A close call: {best} beats your current rotation in {p_better:.0%} of plausible years, "
+               "prices and weightings - not clearly better. Worth discussing with your agronomist.")
+    else:
+        kind = "options_better"
+        msg = (f"{best} beats your current rotation in {p_better:.0%} of plausible years, prices and "
+               "weightings - an option worth exploring with your agronomist.")
+    return {"kind": kind, "best_alternative": best, "p_better": round(p_better, 3), "message": msg}

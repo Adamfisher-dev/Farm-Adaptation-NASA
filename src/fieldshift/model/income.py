@@ -39,8 +39,10 @@ from fieldshift import config
 INCOME_CSV = config.CONTENT_DIR / "income.csv"
 ADJUSTMENTS_CSV = config.CONTENT_DIR / "income_adjustments.csv"
 UNDERSEED_ROW = {"red_clover": "red_clover", "alfalfa": "alfalfa_establishment"}
-LONG_ROTATION_YEARS = 3          # 3+ year rotations that add a crop other than corn/soybean get the
-                                 # long-rotation (Marsden) yield effect; corn-corn-soybean does not
+LONG_ROTATION_YEARS = 3          # 3+ year rotations that include a Marsden Farm crop get the
+MARSDEN_CROPS = {"oats", "red_clover", "alfalfa"}   # long-rotation yield effect (Davis et al. 2012 measured
+                                 # it in corn-soybean-oats/red clover and corn-soybean-oats/alfalfa-alfalfa;
+                                 # not shown for wheat, and corn-corn-soybean is not diversified)
 LEGUMES_FOR_N = {"alfalfa", "red_clover"}
 
 
@@ -82,7 +84,7 @@ def rotation_income(plan, crops: pd.DataFrame | None = None, adj: dict | None = 
     n = len(plan)
     missing, years = [], []
     diversified = n >= LONG_ROTATION_YEARS and any(
-        c not in ("corn", "soybean") for y in plan for c in y[0].split("+"))
+        c in MARSDEN_CROPS for y in plan for c in y[0].split("+"))
 
     def need(crop, col):
         v = _num(crops, crop, col)
@@ -115,9 +117,13 @@ def rotation_income(plan, crops: pd.DataFrame | None = None, adj: dict | None = 
         if diversified and cash in ("corn", "soybean"):
             yield_pct += effect(f"long_rotation_{cash}_yield_pct")
             notes.append(f"{n}-year rotation")
-        if cash == "corn" and (prev_cash in LEGUMES_FOR_N or prev_under in LEGUMES_FOR_N):
+        if cash == "corn" and "alfalfa" in (prev_cash, prev_under):
             n_credit = effect("n_credit_after_legume")
-            notes.append("N credit after legume")
+            notes.append("N credit after alfalfa")
+        elif cash == "corn" and prev_under == "red_clover":
+            n_credit = adj.get("n_credit_after_red_clover", np.nan)
+            n_credit = effect("n_credit_after_legume") if pd.isna(n_credit) else float(n_credit)
+            notes.append("N credit after red clover")
         if cash == "corn" and prev_cover == "cereal_rye":
             yield_pct += effect("rye_before_corn_yield_pct")
             notes.append("after rye cover")
@@ -217,8 +223,18 @@ if __name__ == "__main__":
     csoaa = rotation_income([["corn"], ["soybean"], ["oats+alfalfa"], ["alfalfa"]], crops, adj2)
     assert abs(csoaa["years"][1]["total"] - (60 * 1.16 * 11 - 570)) < 1e-6        # +16 % soybean in a diversified rotation
 
-    # the real template is still blank -> nothing is scored, and the missing cells are listed
-    res = rotation_incomes({"C-S": [["corn"], ["soybean"]]})
-    print("\ncontent/income.csv:", "complete" if res["complete"] else missing_summary(res))
-    assert not res["complete"]
+    # a blank table -> nothing is scored, and the missing cells are listed
+    blank = pd.read_csv(tmp / "income.csv")
+    blank[["yield", "price", "cost_per_acre"]] = np.nan
+    blank.to_csv(tmp / "blank.csv", index=False)
+    res = rotation_incomes({"C-S": [["corn"], ["soybean"]]}, income_path=tmp / "blank.csv",
+                           adjustments_path=tmp / "adj.csv")
+    print("\nblank table:", missing_summary(res))
+    assert not res["complete"] and "corn.yield" in missing_summary(res)
+
+    # the real tables in content/
+    real = rotation_incomes({"C-S": [["corn"], ["soybean"]],
+                             "C-S-W": [["corn"], ["soybean"], ["winter_wheat"]],
+                             "C-S-O/RC": [["corn"], ["soybean"], ["oats+red_clover"]]})
+    print("content/ tables:", "complete" if real["complete"] else missing_summary(real), real["income"])
     print("\nOK - checks passed.")

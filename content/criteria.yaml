@@ -11,6 +11,12 @@
 # about corn-soybean on a 7 % slope here (6.2 days x S 0.79), so cutting bare-and-wet days counts
 # fully on erosive fields and only partly on flat ones (a flat 1.8 % field reaches ~1.4).
 #
+# income: an income difference counts fully up to $100/acre/yr (scale 100 x cap 1.0) and saturates beyond.
+# Set from the data (content/income.csv, 2026): at mid prices the candidate rotations span ~$80/acre
+# (corn-soybean -$4 to the 4-year Marsden rotation -$82) and corn-soybean alone swings $112 between the
+# low and high price. The old setting (scale 50, cap 0.5) saturated at $25, so a $40 and an $82 loss
+# scored the same.
+#
 # drought_risk uses the water deficit in the crop's sensitive window (mm), not stressed days:
 # stressed days count any stress, however slight, and are high even in normal years.
 criteria:
@@ -20,6 +26,6 @@ criteria:
   som_proxy:        {type: literature,column: som_proxy,          statistic: fixed,     direction: benefit, slider: soil_erosion,     unit: ordinal_0_3}
   n_benefit:        {type: literature,column: n_benefit,          statistic: fixed,     direction: benefit, slider: pests_fertiliser, unit: ordinal_0_3}
   pest_break:       {type: literature,column: pest_break,         statistic: fixed,     direction: benefit, slider: pests_fertiliser, unit: ordinal_0_3}
-  income:           {type: data,      column: income_usd_per_acre,statistic: mean,      direction: benefit, slider: income,           unit: usd_per_acre, scale: 50.0, cap: 0.5}
+  income:           {type: data,      column: income_usd_per_acre,statistic: mean,      direction: benefit, slider: income,           unit: usd_per_acre, scale: 100.0, cap: 1.0}
 
 sliders: [drought, soil_erosion, water_quality, income, pests_fertiliser]
