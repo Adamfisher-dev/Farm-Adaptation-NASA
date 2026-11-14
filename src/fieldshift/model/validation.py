@@ -237,7 +237,9 @@ def _crossings(values: pd.Series, threshold: float):
     observations, interpolated linearly between the images either side (clear images are
     days apart, so 'first image above' would be biased late). None if not found."""
     v = values.sort_index()
-    t = v.index.astype("int64").to_numpy()            # ns since epoch
+    # ns since epoch: convert explicitly - pandas 3 stores datetimes in microseconds by default,
+    # so astype("int64") alone gave numbers that pd.Timestamp() read as dates in January 1970
+    t = v.index.as_unit("ns").asi8
     x = v.to_numpy()
     above = x >= threshold
     if above.sum() < 2:

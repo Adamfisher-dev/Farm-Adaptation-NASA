@@ -217,8 +217,9 @@ if __name__ == "__main__":
     csoaa = rotation_income([["corn"], ["soybean"], ["oats+alfalfa"], ["alfalfa"]], crops, adj2)
     assert abs(csoaa["years"][1]["total"] - (60 * 1.16 * 11 - 570)) < 1e-6        # +16 % soybean in a diversified rotation
 
-    # the real template is still blank -> nothing is scored, and the missing cells are listed
+    # the real tables (filled 2026-11-14): report whether they are complete; if not, the missing
+    # cells are listed and the income criterion is left out of the score
     res = rotation_incomes({"C-S": [["corn"], ["soybean"]]})
     print("\ncontent/income.csv:", "complete" if res["complete"] else missing_summary(res))
-    assert not res["complete"]
+    assert res["complete"] or res["missing"], "incomplete tables must list what is missing"
     print("\nOK - checks passed.")
