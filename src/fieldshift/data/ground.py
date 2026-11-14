@@ -119,9 +119,27 @@ def _read(path: Path, step: str) -> str:
     return Path(path).read_text(encoding="utf-8")
 
 
-def load_station_weather(path: Path = CLIMATE_FILE) -> pd.DataFrame:
-    """Daily tmax_c, tmin_c, precip_mm at the Ames 5 SE climate station (for compare_weather)."""
-    return parse_climate(_read(path, "ground")).asfreq("D")
+# NWS cooperative observers read their instruments once a day, often around 7 am. The "high" and
+# the 24-hour rain written on a date then belong mostly to the PREVIOUS calendar day; the "low" is
+# that morning's. Checked against NASA POWER (calendar days) for IA0203, 1981-2025: moving high and
+# rain back one day raises daily rain correlation from 0.32 to 0.77 and lowers the Tmax error from
+# 3.9 to 3.3 C; the low fits best unshifted. The automated ISU station needs no shift.
+COOP_SHIFT_DAYS = {"tmax_c": -1, "precip_mm": -1, "tmin_c": 0}
+
+
+def load_station_weather(path: Path = CLIMATE_FILE, align_to_calendar_day: bool = True) -> pd.DataFrame:
+    """Daily tmax_c, tmin_c, precip_mm at the Ames 5 SE climate station (for compare_weather).
+    align_to_calendar_day: undo the morning observation time (see COOP_SHIFT_DAYS)."""
+    df = parse_climate(_read(path, "ground")).asfreq("D")
+    if align_to_calendar_day:
+        for col, days in COOP_SHIFT_DAYS.items():
+            df[col] = df[col].shift(days)
+    return df
+
+
+def load_isusm_weather(path: Path = ISUSM_FILE) -> pd.DataFrame:
+    """Daily tmax_c, tmin_c, precip_mm from the automated ISU station (calendar days, since 2013)."""
+    return parse_isusm(_read(path, "ground"))[["tmax_c", "tmin_c", "precip_mm"]].asfreq("D")
 
 
 def load_soil_moisture(depth: str = "60cm", path: Path = ISUSM_FILE) -> pd.Series:

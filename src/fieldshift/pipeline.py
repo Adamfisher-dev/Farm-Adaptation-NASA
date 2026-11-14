@@ -332,7 +332,16 @@ def validate(out: dict, smap_path=None, ndvi_path=None, smap_max_km: float = 15.
     else:
         notes.append("Satellite greenness (HLS) is only extracted for the example fields; "
                      "this field is not one of them.")
-    obs = [s for s in (sm, nd) if s is not None]
+    probes = {}
+    try:
+        from fieldshift.data import ground
+        st = config.ISUSM_STATION
+        probe_km = math.hypot((st["lat"] - lat) * 110.5, (st["lon"] - lon) * 111.3 * math.cos(math.radians(lat)))
+        for depth in ("30cm", "60cm"):
+            probes[depth] = ground.load_soil_moisture(depth)
+    except (FileNotFoundError, ValueError, ImportError) as err:
+        notes.append(f"ISU soil-probe data not available: {err}")
+    obs = [s for s in (sm, nd, *probes.values()) if s is not None]
     if obs:
         first, last = min(s.index.min().year for s in obs), max(s.index.max().year for s in obs)
     else:   # no satellite files yet: still compare with POWER's modelled root-zone wetness over the CDL years
@@ -377,13 +386,39 @@ def validate(out: dict, smap_path=None, ndvi_path=None, smap_max_km: float = 15.
         comparisons["power_gwetroot"] = val.compare_soil(
             model, out["weather"]["GWETROOT"].loc[str(years[0]):str(years[-1])],
             name="NASA POWER modelled root-zone wetness (GWETROOT)")
+    for depth, series in probes.items():
+        comparisons[f"isusm_{depth}"] = val.compare_soil(
+            model, series, name=f"the ISU soil-moisture probe at {depth.replace('cm', ' cm')} depth "
+                                f"(station {config.ISUSM_STATION['id']}, {probe_km:.0f} km away)")
+    if probes and probe_km > 25:
+        notes.append(f"The ISU soil probe is {probe_km:.0f} km from this field - comparison is only indicative.")
     sentences += [val.sentence(c) for c in comparisons.values()]
+
+    weather = None                      # NASA POWER vs the NWS station, in the station's own POWER cell
+    try:
+        from fieldshift.data import ground
+        cs = config.CLIMATE_STATION
+        station = ground.load_station_weather()
+        power_st, _ = load_power(cs["lat"], cs["lon"], allow_download=False)
+        weather = val.compare_weather(power_st, station)
+        weather["station"] = f"{cs['id']} ({cs['name']}), morning readings aligned to calendar days"
+        sentences.append(val.weather_sentence(weather))
+        try:                            # second, automated station (calendar days, shorter record)
+            st = config.ISUSM_STATION
+            power_isu, _ = load_power(st["lat"], st["lon"], allow_download=False)
+            weather_isu = val.compare_weather(power_isu, ground.load_isusm_weather())
+            weather["isusm_station"] = {k: weather_isu[k] for k in ("tmax", "tmin", "rain_daily", "rain_monthly")}
+        except (FileNotFoundError, ValueError, KeyError) as err:
+            notes.append(f"ISU station weather not compared: {err}")
+    except (FileNotFoundError, ValueError, KeyError, ImportError) as err:
+        notes.append(f"Ground weather station comparison not available: {err}")
     ndvi_res = None
     if nd is not None:
         ndvi_res = val.compare_ndvi(daily, nd)
         sentences.append(val.ndvi_sentence(ndvi_res))
     return {"available": True, "point": pid, "distance_km": round(km, 1), "years": [years[0], years[-1]],
-            "notes": notes, "comparisons": comparisons, "ndvi": ndvi_res, "sentences": sentences}
+            "notes": notes, "comparisons": comparisons, "ndvi": ndvi_res, "weather": weather,
+            "sentences": sentences}
 
 
 # --- Everything for one field, in the playbook order (6.1) ---------------------------------------------
