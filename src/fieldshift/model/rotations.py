@@ -167,6 +167,11 @@ def _canonical(plan) -> tuple:
     return min(tuple(items[i:] + items[:i]) for i in range(len(items)))
 
 
+def canonical(plan) -> tuple:
+    """Key that is equal for the same rotation whatever its starting year or name."""
+    return _canonical([list(y) if isinstance(y, (list, tuple)) else [y] for y in plan])
+
+
 def _all_crops(plan) -> set:
     return {c for y in plan for e in y for c in e.split("+")}
 

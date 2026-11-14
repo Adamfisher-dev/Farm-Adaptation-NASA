@@ -84,9 +84,12 @@ def crop_history(field_geom, years=None, folder: Path = CDL_DIR, fips: str = FIP
 def guess_rotation(history, last_n=6):
     """Guess the existing rotation from recent years, in crops.py format, plus a sentence to confirm.
 
-    Recognises corn-soybean (either order), continuous corn and corn-corn-soybean;
-    anything else is returned year by year for the farmer to correct.
+    Finds the shortest repeating cycle (rotations.rotation_from_history: corn-soybean in either
+    order, corn-corn-soybean, corn-soybean-oats, ...). If no cycle repeats at least twice in
+    the recent years, the last three years are returned for the farmer to correct.
     """
+    from fieldshift.model.rotations import rotation_from_history
+
     items = sorted(history.items())[-last_n:]
     recent = [crop for _, crop in items]
     if not recent:
@@ -96,11 +99,7 @@ def guess_rotation(history, last_n=6):
     if any(c not in known for c in recent):
         return None, text + " Some years are not crops we model - please enter your rotation."
 
-    def matches(pattern):
-        n = len(pattern)
-        return any(all(recent[i] == pattern[(i + k) % n] for i in range(len(recent))) for k in range(n))
-
-    for pattern in (["corn", "soybean"], ["corn", "corn", "soybean"], ["corn"]):
-        if matches(pattern):
-            return [[c] for c in pattern], text
+    cycle = rotation_from_history(dict(items))
+    if len(recent) >= 2 and len(cycle) <= len(recent) // 2:     # the cycle repeats at least twice
+        return [[c] for c in cycle], text
     return [[c] for c in recent[-3:]], text + " The pattern is irregular - please check the rotation."

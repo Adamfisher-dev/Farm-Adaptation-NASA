@@ -134,19 +134,22 @@ except Exception as e:  # network / API errors: show them instead of crashing
 st.caption(
     f"Weather: NASA POWER, {out['loaded_from']}, {out['years']['weather'][0]}-{out['years']['weather'][1]}. "
     f"Water model {out['years']['water_model'][0]}-{out['years']['water_model'][1]}. "
-    f"Soil is a placeholder (AWC {out['soil']['awc_mm_per_m']:.0f} mm/m, tile-drained) until SSURGO is added."
+    f"Soil: AWC {out['soil']['awc_mm_per_m']:.0f} mm/m, "
+    f"{'tile-drained' if out['soil']['tile_drained'] else 'not tiled'} ({out['soil']['source']})."
 )
+for w in out["field"]["warnings"]:
+    st.info(w)
 for w in out["unit_warnings"]:
     st.warning(w)
 
 tab_rank, tab_climate = st.tabs(["Rotations", "Climate snapshot"])
 
 with tab_rank:
-    scores = pipeline.basic_scores(out["water"], weights)
+    scores = pipeline.basic_scores(out, weights)
     st.subheader("Basic ranking")
     st.caption(
-        "0.5 = same as Corn-Soybean; higher is better. Uses only the priorities the water "
-        "model covers (drought, water quality, soil cover). Income and pests are not scored yet."
+        f"0.5 = same as {pipeline.BASELINE}; higher is better. Drought, water quality, soil health "
+        "and pests are scored; income is not scored yet."
     )
     show = scores.rename(columns={**SLIDER_LABELS, "score": "Score"})
     st.dataframe(show.style.format("{:.2f}"), width="stretch")
