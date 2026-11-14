@@ -510,6 +510,11 @@ def run_analysis(lat: float, lon: float, answers: dict | None = None, weights: d
     ranking = list(robust["summary"].index)
     picks = top_options(out, ranking)
     verdict_info = verdict(robust, out["baseline"])
+    from fieldshift.model import calendar as calendar_mod
+    shown_names = [out["baseline"]] + [p["name"] for p in picks]
+    calendars = {n: calendar_mod.field_calendar(rotations[n], out["weather"], out["et0"],
+                                                out["soil"]["awc_mm_per_m"], out["soil"]["tile_drained"])
+                 for n in shown_names if n in rotations}
     by_name = {c.name: c for c in cands}
     year = replay_year or 2012
     return {
@@ -519,6 +524,7 @@ def run_analysis(lat: float, lon: float, answers: dict | None = None, weights: d
         "removed": removed,
         "shown": [{"name": out["baseline"], "tier": "current"}] + picks,
         "verdict": verdict_info,          # is any option really better than the current rotation?
+        "calendar": calendars,            # field calendar (half-months x rotation years) per shown rotation
         "ranking": robust["summary"],
         "point_scores": point,
         "criteria_raw": out["criteria_raw"],

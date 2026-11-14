@@ -1,0 +1,36 @@
+# Field calendar (model/calendar.py): what the half-month cells show and when a risk mark appears.
+# All thresholds are STARTING VALUES (verify with Iowa State Extension / an agronomist).
+# "share" = share of past years (NASA POWER / water model, 1984-2025) in which it happened in that half-month.
+
+states:                       # what is in the field (majority of days in the half-month)
+  bare:          {label: "Bare soil",           symbol: "·"}
+  cover:         {label: "Cover crop",          symbol: "░"}
+  crop_partial:  {label: "Crop, partial cover",  symbol: "▓"}     # seedling / establishing / dying back / dormant
+  crop_full:     {label: "Crop, full canopy",    symbol: "█"}
+crop_full_kc: 0.7             # crop coefficient at which the canopy counts as full (same as validation.KC_GREEN)
+
+risks:
+  erosion:
+    symbol: "⚠"
+    label: "Erosion risk: soil exposed when erosive storms are common"
+    rain_mm: 12.7             # erosive storm: > 0.5 inch in a day (RUSLE threshold, as water_balance.ERODING_RAIN_MM)
+    exposed_kc: 0.5           # soil counts as exposed when bare, or under an ANNUAL cash crop with Kc below this
+                              # (seedling). Kc measures water use, not ground cover: a dormant perennial or an
+                              # established winter cover crop uses little water but still protects the soil.
+    cover_establish_days: 30  # a cover crop protects the soil from about a month after seeding
+    min_exposed_share: 0.5    # ... on at least half the days of the half-month
+    min_share: 0.33           # and erosive storms fell in that half-month in at least 1 year in 3
+  drought:
+    symbol: "💧"
+    label: "Drought-sensitive stage"
+    min_share: 0.0            # always marked in the crop's sensitive window; the share says how often it was stressed
+  waterlogging:
+    symbol: "🌊"
+    label: "Waterlogging risk"
+    min_share: 0.33           # at least one waterlogged day in at least 1 year in 3
+  frost:
+    symbol: "❄"
+    label: "Frost risk after planting"
+    tmin_c: 0.0               # frost: daily minimum at or below 0 C
+    days_after_planting: 30   # young summer crops are frost-sensitive for about a month after planting
+    min_share: 0.2            # frost in that half-month in at least 1 year in 5
