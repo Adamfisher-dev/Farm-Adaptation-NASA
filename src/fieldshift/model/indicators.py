@@ -15,7 +15,6 @@ Units are SI (C, mm, days). Convert to F / inches in the app, not here.
 
 import numpy as np
 import pandas as pd
-from scipy import stats
 
 from fieldshift import config
 

@@ -72,27 +72,36 @@ def farm_inputs(want_cover=True, hay_buyer=True, hay_equipment=True, open_to_new
     }
 
 
+MIN_COMPARED = 3        # the existing rotation + at least two others (brief requirement)
+
+
 def candidates(want_cover=True, hay_buyer=True, hay_equipment=True, open_to_new=True,
                current_crops=None, small_grain_buyer=True, existing_rotation=None):
     """(candidate Rotation objects, removed [{rotation_id, name, reason}]).
 
     If the farmer is not open to new crops and lists current crops, rotations with
-    other cash crops are removed too (cover crops still allowed, since they are asked separately).
+    other cash crops are removed too (cover crops still allowed, since they are asked separately),
+    but never below MIN_COMPARED: openness is a preference, not a constraint (rotations.py rule;
+    the brief asks for at least three rotations), so the closest ones stay, flagged 'not_open'.
     """
     inputs = farm_inputs(want_cover, hay_buyer, hay_equipment, open_to_new, small_grain_buyer,
                          existing_rotation)
     cands, removed = rot_mod.build_candidates(inputs)
     if not open_to_new and current_crops:
-        current = {c.lower().replace(" ", "_") for c in current_crops} | {"cereal_rye"}
-        keep = []
+        # cover crop and red clover (sown with the oats, no extra field operation - rotations.yaml)
+        # are not "new crops"
+        current = {c.lower().replace(" ", "_") for c in current_crops} | {"cereal_rye", "red_clover"}
+        keep, other = [], []
         for r in cands:
             crops = {c for y in r.plan for e in y for c in e.split("+")}
-            if r.is_existing or crops <= current:
-                keep.append(r)
-            else:
-                removed.append({"rotation_id": r.rotation_id, "name": r.name,
-                                "reason": "Uses crops you do not grow now"})
-        cands = keep
+            (keep if r.is_existing or crops <= current else other).append(r)
+        if len(keep) < MIN_COMPARED:          # top up with the fewest new crops first
+            other.sort(key=lambda r: len({c for y in r.plan for e in y for c in e.split("+")} - current))
+            keep += other[:MIN_COMPARED - len(keep)]
+        kept = {r.name for r in keep}
+        removed += [{"rotation_id": r.rotation_id, "name": r.name, "reason": "Uses crops you do not grow now"}
+                    for r in cands if r.name not in kept]
+        cands = [r for r in cands if r.name in kept]
     for r in cands:                            # farmer variants become available by name too
         ROTATIONS.setdefault(r.name, r.plan)
         _LIBRARY.setdefault(r.name, r)
@@ -313,7 +322,7 @@ def top_options(out: dict, ranking, k: int = 3) -> list[dict]:
 
 # --- Validation (model/validation.py + data/smap.py) ------------------------------------------------
 def validate(out: dict, smap_path=None, ndvi_path=None, smap_max_km: float = 15.0,
-             ndvi_max_km: float = 0.5) -> dict:
+             ndvi_max_km: float = 0.5, probe_max_km: float = 50.0) -> dict:
     """Check the water model against NASA SMAP soil moisture, POWER's modelled root-zone wetness,
     and the crop calendar against HLS satellite greenness (NDVI).
 
@@ -356,8 +365,12 @@ def validate(out: dict, smap_path=None, ndvi_path=None, smap_max_km: float = 15.
         from fieldshift.data import ground
         st = config.ISUSM_STATION
         probe_km = math.hypot((st["lat"] - lat) * 110.5, (st["lon"] - lon) * 111.3 * math.cos(math.radians(lat)))
-        for depth in ("30cm", "60cm"):
-            probes[depth] = ground.load_soil_moisture(depth)
+        if probe_km > probe_max_km:     # different weather and soil: the comparison would say nothing about this field
+            notes.append(f"The ISU soil-moisture probe ({st['id']}) is {probe_km:.0f} km from this field, too far "
+                         "to check the model against; it is only used for fields in central Iowa.")
+        else:
+            for depth in ("30cm", "60cm"):
+                probes[depth] = ground.load_soil_moisture(depth)
     except (FileNotFoundError, ValueError, ImportError) as err:
         notes.append(f"ISU soil-probe data not available: {err}")
     obs = [s for s in (sm, nd, *probes.values()) if s is not None]

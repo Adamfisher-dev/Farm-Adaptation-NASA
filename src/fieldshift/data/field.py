@@ -135,7 +135,12 @@ def build_field_profile(geom, overrides=None):
         sources["crop_history"] = "USDA NASS Cropland Data Layer"
     except (FileNotFoundError, ValueError) as err:
         hist, guess, question = {}, None, "What do you grow on this field now?"
-        warnings.append(f"Crop history not available ({err}).")
+        # plain words for the farmer; the technical reason stays in sources for the evidence page
+        why = ("the crop maps have not been downloaded" if isinstance(err, FileNotFoundError)
+               else "the downloaded crop maps cover Story County only")
+        warnings.append(f"We could not look up past crops for this field ({why}). "
+                        "Please tell us what you grow.")
+        sources["crop_history"] = f"not available: {err}"
 
     # farmer corrections win over data
     tile = overrides.get("tile_drained", s.likely_tiled)
