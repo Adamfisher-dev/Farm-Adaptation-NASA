@@ -27,11 +27,20 @@ COUNTY = {
 # Replace with the TIGER boundary's total_bounds once downloaded.
 COUNTY_BBOX = (-93.70, 41.86, -93.23, 42.21)
 
-EXAMPLE_POINTS = {                         # from CLAUDE.md, Appendix A
-    "centre": (42.03, -93.47),
-    "nw": (42.18, -93.66),
-    "se": (41.89, -93.26),
+# Demo fields (playbook section 3). Chosen 2026-11-14: corn or soybean every year 2021-2024 in
+# CDL (>= 85 % of the 400 m box), soils from live SSURGO (Soil Data Access):
+#   flat_tiled  Canisteo/Webster clay loam, 1.8 % slope, poorly drained (C/D) -> tiled; c-s-c-s
+#   sloping     Clarion / Clarion-Storden (6-10 %, eroded), 5.6 % slope, well drained (B); c-s-c-s
+#   light_soil  Clarion / Dickinson fine sandy loam, 3.4 %, well drained (B), lowest AWC found
+#               (175 mm/m vs ~184; Des Moines Lobe soils differ more in drainage than in AWC); c-c-s-c
+# SMAP and HLS (AppEEARS) are requested for these points: if you change them, rerun
+# scripts/prefetch_field_data.py nasa (changed points are resubmitted automatically).
+EXAMPLE_POINTS = {
+    "flat_tiled": (42.025, -93.53),
+    "sloping": (42.175, -93.47),
+    "light_soil": (41.9169, -93.3991),
 }
+DEFAULT_POINT = "flat_tiled"
 
 # ---------------------------------------------------------------------------
 # Years

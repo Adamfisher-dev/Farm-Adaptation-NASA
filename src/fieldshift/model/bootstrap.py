@@ -96,14 +96,14 @@ def _stat_rows(x: np.ndarray, how: str, direction: str) -> np.ndarray:
 # --- Core ------------------------------------------------------------------------------------
 def bootstrap_raw(tables: dict, ordinal_scores: dict | None = None, slope_factor: float | None = None,
                   n_boot: int = N_BOOT, window: str = "all", half_life: float = HALF_LIFE_YEARS,
-                  seed: int = 0, spec: dict | None = None):
+                  seed: int = 0, spec: dict | None = None, extra: dict | None = None):
     """Raw criterion values for every bootstrap replicate.
 
     Returns (raw array (n_boot, n_rot, n_crit), rotation ids, criterion names, years, probs).
     Replicate 0 is NOT special; all replicates are random draws.
     """
     spec = spec or scoring.load_criteria()
-    ordinal_scores = ordinal_scores or {}
+    ordinal_scores, extra = ordinal_scores or {}, extra or {}
     rids = list(tables)
     crits = list(spec["criteria"])
     years = np.array(sorted(set().union(*[set(t["year"]) for t in tables.values()])))
@@ -127,7 +127,9 @@ def bootstrap_raw(tables: dict, ordinal_scores: dict | None = None, slope_factor
         elif c["type"] == "literature":
             for i, rid in enumerate(rids):
                 raw[:, i, j] = float(ordinal_scores.get(rid, {}).get(c["column"], np.nan))
-        # "data" criteria (income) stay NaN until an income module exists
+        else:  # "data" criteria (income): one fixed value per rotation from `extra`, NaN if missing
+            for i, rid in enumerate(rids):
+                raw[:, i, j] = float(extra.get(rid, {}).get(c["column"], np.nan))
     return raw, rids, crits, years, probs
 
 
@@ -143,7 +145,8 @@ def _normalise_array(raw: np.ndarray, existing: int, crits: list, spec: dict) ->
 def run_bootstrap(tables: dict, existing_id: str, slider_weights: dict, ordinal_scores: dict | None = None,
                   slope_factor: float | None = None, n_boot: int = N_BOOT, window: str = "all",
                   half_life: float = HALF_LIFE_YEARS, alpha: float = DIRICHLET_ALPHA,
-                  sample_weights: bool = True, seed: int = 0, spec: dict | None = None) -> dict:
+                  sample_weights: bool = True, seed: int = 0, spec: dict | None = None,
+                  extra: dict | None = None) -> dict:
     """Score distribution per rotation under year resampling (+ weight sampling).
 
     Returns {
@@ -155,7 +158,7 @@ def run_bootstrap(tables: dict, existing_id: str, slider_weights: dict, ordinal_
     """
     spec = spec or scoring.load_criteria()
     raw, rids, crits, years, probs = bootstrap_raw(tables, ordinal_scores, slope_factor, n_boot,
-                                                   window, half_life, seed, spec)
+                                                   window, half_life, seed, spec, extra)
     if existing_id not in rids:
         raise KeyError(f"Existing rotation {existing_id!r} is not in the tables")
     avail = [j for j, _ in enumerate(crits) if not np.isnan(raw[:, :, j]).any()]
@@ -209,13 +212,13 @@ def run_bootstrap(tables: dict, existing_id: str, slider_weights: dict, ordinal_
 
 def robustness(tables: dict, existing_id: str, slider_weights: dict, ordinal_scores: dict | None = None,
                slope_factor: float | None = None, n_boot: int = 500, seed: int = 0,
-               spec: dict | None = None) -> dict:
+               spec: dict | None = None, extra: dict | None = None) -> dict:
     """Does the top rotation change with how past climate is weighted? (playbook 6.9)
     Contract 10.3 "robustness": recent30_same_top, weighted_same_top, note."""
     tops, p_top = {}, {}
     for window in ("all", "recent30", "weighted"):
         res = run_bootstrap(tables, existing_id, slider_weights, ordinal_scores, slope_factor,
-                            n_boot=n_boot, window=window, seed=seed, spec=spec)
+                            n_boot=n_boot, window=window, seed=seed, spec=spec, extra=extra)
         top = res["summary"].index[0]
         tops[window], p_top[window] = top, float(res["summary"].loc[top, "p_top"])
     same30, samew = tops["recent30"] == tops["all"], tops["weighted"] == tops["all"]

@@ -12,7 +12,7 @@ Output : compact table sample_data/hls_ndvi.csv (committed, small):
            field, date, sensor, ndvi, n_clear
 
     from fieldshift.data.ndvi import load_ndvi, dekadal
-    obs = load_ndvi("centre")          # one row per clear date
+    obs = load_ndvi("flat_tiled")      # one row per clear date
     ten_day = dekadal(obs["ndvi"])     # 10-day maximum-value composite
 
 NDVI reads roughly 0.1-0.2 over bare soil and 0.7-0.9 over a dense crop canopy. It shows
@@ -109,17 +109,20 @@ def parse_raw(csv_paths, min_clear_share: float = 0.5) -> pd.DataFrame:
     return out.drop(columns="n_total").sort_values(["field", "date", "sensor"]).reset_index(drop=True)
 
 
-def build_compact(raw_dir: Path = RAW_DIR, out: Path = config.HLS_NDVI_CSV) -> pd.DataFrame:
+def build_compact(raw_dir: Path = RAW_DIR, out: Path = config.HLS_NDVI_CSV, fields=None) -> pd.DataFrame:
+    """fields: keep only these field ids (e.g. config.EXAMPLE_POINTS) - drops results of older requests."""
     paths = sorted(Path(raw_dir).glob("*.csv"))
     if not paths:
         raise FileNotFoundError(f"No AppEEARS HLS CSVs in {raw_dir}. Run scripts/prefetch_field_data.py hls.")
     obs = parse_raw(paths)
+    if fields is not None:
+        obs = obs[obs["field"].isin(list(fields))]
     out.parent.mkdir(parents=True, exist_ok=True)
     obs.to_csv(out, index=False, float_format="%.4f", date_format="%Y-%m-%d")
     return obs
 
 
-def load_ndvi(field: str = "centre", path: Path = config.HLS_NDVI_CSV) -> pd.DataFrame:
+def load_ndvi(field: str = config.DEFAULT_POINT, path: Path = config.HLS_NDVI_CSV) -> pd.DataFrame:
     """Clear-sky field NDVI observations for one example field (DatetimeIndex)."""
     if not Path(path).exists():
         raise FileNotFoundError(f"{path} not found. Run scripts/prefetch_field_data.py hls.")

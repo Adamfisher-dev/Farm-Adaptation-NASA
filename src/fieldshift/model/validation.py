@@ -171,6 +171,102 @@ def compare_soil(model_wetness: pd.Series, obs: pd.Series, months=GROWING_SEASON
     }
 
 
+# --- 4. Crop calendar vs satellite greenness (HLS NDVI) -----------------------------------------------
+# NDVI reads ~0.1-0.2 over bare soil, 0.3-0.5 over sparse crop, 0.7-0.9 over a dense canopy (playbook 7.4).
+# The model's crop coefficient Kc tracks the same thing (canopy), so they should rise and fall together.
+# Thresholds are STARTING VALUES (verify): agronomist / remote-sensing check.
+NDVI_GREEN = 0.5        # observed: full-ish canopy
+NDVI_BARE = 0.3         # observed: bare or nearly bare
+KC_GREEN = 0.7          # model: canopy well developed (development stage passed ~halfway)
+KC_BARE = 0.45          # model: bare soil, or a crop/cover too small to show (initial stage)
+NDVI_SEASON = (3, 11)   # March-November: winter NDVI is unreliable (snow masked, low sun)
+
+
+def compare_ndvi(daily: pd.DataFrame, ndvi: pd.Series, months=NDVI_SEASON) -> dict:
+    """Modelled crop calendar (daily['kc'], from run_actual_crops) vs HLS field NDVI (clear dates).
+
+    Returns {"kc_vs_ndvi": metrics (r is the headline), "cover_agreement": share of dates where
+    model and satellite agree on bare vs green (partial-canopy dates left out), "confusion": counts,
+    "timing": DataFrame per year of green-up / brown-down dates (observed, model, difference in days),
+    "greenup_offset_days", "browndown_offset_days": median model - observed}.
+    """
+    obs = _season(pd.Series(ndvi, dtype=float).dropna(), months)
+    kc = daily["kc"].reindex(obs.index)
+    pairs = pd.concat([kc, obs], axis=1, keys=["kc", "ndvi"]).dropna()
+
+    def state(values, green, bare):
+        return np.select([values >= green, values <= bare], ["green", "bare"], "partial")
+
+    s_model = state(pairs["kc"], KC_GREEN, KC_BARE)
+    s_obs = state(pairs["ndvi"], NDVI_GREEN, NDVI_BARE)
+    definite = (s_model != "partial") & (s_obs != "partial")
+    confusion = pd.crosstab(pd.Series(s_model[definite], name="model"), pd.Series(s_obs[definite], name="satellite"))
+    agreement = float((s_model[definite] == s_obs[definite]).mean()) if definite.any() else np.nan
+
+    rows = []
+    for year, grp in pairs.groupby(pairs.index.year):
+        up, down = _crossings(grp["ndvi"], NDVI_GREEN)
+        k_year = daily["kc"][daily.index.year == year]
+        k_green = k_year.index[k_year >= KC_GREEN]
+        if up is None or down is None or len(k_green) == 0:
+            continue
+        in_year = daily[daily.index.year == year]
+        cash = in_year.loc[in_year["role"] == "cash", "crop"]
+        rows.append({"year": int(year), "crop": cash.mode().iloc[0] if len(cash) else "bare",
+                     "obs_greenup": up.date(), "model_greenup": k_green.min().date(),
+                     "obs_browndown": down.date(), "model_browndown": k_green.max().date(),
+                     "n_obs": int(len(grp))})
+    timing = pd.DataFrame(rows)
+    if not timing.empty:
+        timing["greenup_diff_days"] = (pd.to_datetime(timing["model_greenup"]) - pd.to_datetime(timing["obs_greenup"])).dt.days
+        timing["browndown_diff_days"] = (pd.to_datetime(timing["model_browndown"]) - pd.to_datetime(timing["obs_browndown"])).dt.days
+    m = metrics(pairs["kc"], pairs["ndvi"])
+    return {
+        "name": "HLS satellite greenness (NDVI, 30 m)",
+        "kc_vs_ndvi": {"n": m["n"], "r": m["r"], "period": m["period"]},
+        "cover_agreement": round(agreement, 3) if not np.isnan(agreement) else np.nan,
+        "confusion": confusion,
+        "timing": timing,
+        "greenup_offset_days": float(timing["greenup_diff_days"].median()) if not timing.empty else np.nan,
+        "browndown_offset_days": float(timing["browndown_diff_days"].median()) if not timing.empty else np.nan,
+    }
+
+
+def _crossings(values: pd.Series, threshold: float):
+    """(first upward, last downward) crossing date of `threshold` in one season of clear-sky
+    observations, interpolated linearly between the images either side (clear images are
+    days apart, so 'first image above' would be biased late). None if not found."""
+    v = values.sort_index()
+    t = v.index.astype("int64").to_numpy()            # ns since epoch
+    x = v.to_numpy()
+    above = x >= threshold
+    if above.sum() < 2:
+        return None, None
+
+    def interp(i0, i1):
+        frac = (threshold - x[i0]) / (x[i1] - x[i0]) if x[i1] != x[i0] else 0.0
+        return pd.Timestamp(int(t[i0] + frac * (t[i1] - t[i0])))
+
+    first, last = int(np.argmax(above)), int(len(x) - 1 - np.argmax(above[::-1]))
+    up = interp(first - 1, first) if first > 0 else v.index[first]
+    down = interp(last, last + 1) if last < len(x) - 1 else v.index[last]
+    return up, down
+
+
+def ndvi_sentence(result: dict) -> str:
+    r, agree = result["kc_vs_ndvi"]["r"], result["cover_agreement"]
+    if r is None or np.isnan(r):
+        return "Not enough clear satellite images of this field to check the crop calendar yet."
+    g, b = result["greenup_offset_days"], result["browndown_offset_days"]
+    timing = ""
+    if not np.isnan(g):
+        early = lambda d: f"{abs(round(d)):.0f} days {'later' if d > 0 else 'earlier'}" if round(d) else "on the same day"
+        timing = (f" In a typical year the model's canopy closes {early(g)} and dies back {early(b)} "
+                  "than the satellite saw.")
+    return (f"The model's crop calendar matches what the satellite saw on this field: bare vs green agrees on "
+            f"{agree:.0%} of clear dates, and modelled crop cover follows satellite greenness (r = {r:.2f}).{timing}")
+
+
 def sentence(result: dict) -> str:
     """Plain-language line for the evidence page."""
     r = result["daily_anomaly"]["r"]
@@ -231,4 +327,17 @@ if __name__ == "__main__":
     print(sentence(good))
     assert good["daily_anomaly"]["r"] > 0.5 and abs(noise["daily_anomaly"]["r"]) < 0.1
     assert abs(daily_anomaly(model_wet).mean()) < 0.1
+
+    # 3) NDVI: fake satellite greenness that lags the model by 10 days, with noise and cloudy gaps
+    kc = daily["kc"]
+    # NDVI_GREEN (0.5) lines up with KC_GREEN (0.7); 10-day lag; noise
+    fake_ndvi = (NDVI_GREEN + 0.72 * (kc.shift(10).bfill() - KC_GREEN)).clip(0.1, 0.9) + rng.normal(0, 0.04, len(kc))
+    fake_ndvi = fake_ndvi.loc["2016":][rng.random(len(fake_ndvi.loc["2016":])) < 0.12]   # ~1 clear image / 8 days
+    nd = compare_ndvi(daily, fake_ndvi)
+    print("\nNDVI check:", {k: nd[k] for k in ("kc_vs_ndvi", "cover_agreement", "greenup_offset_days",
+                                              "browndown_offset_days")})
+    print(nd["timing"].head(3).to_string(index=False))
+    print(ndvi_sentence(nd))
+    assert nd["kc_vs_ndvi"]["r"] > 0.8 and nd["cover_agreement"] > 0.85
+    assert -16 <= nd["greenup_offset_days"] <= -4, "model should come out ~10 days earlier"
     print("\nOK - checks passed.")

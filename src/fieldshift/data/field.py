@@ -24,6 +24,8 @@ from fieldshift.data.power import power_cell
 
 BOX_HALF_SIDE_M = 200.0          # clicked point -> ~400 m x 400 m box (CLAUDE.md 4)
 DEFAULT_SOIL_CLASS = "silty_clay_loam_poorly_drained"
+SOIL_SLOPE_EROSION_PCT = 5.0     # SSURGO mean slope >= 5 % (class C and steeper) -> erosion-prone.
+                                 # Starting value, matching terrain.EROSION_PRONE_P90_PCT (verify).
 
 
 def field_geometry(geojson=None, point=None, half_side_m=BOX_HALF_SIDE_M):
@@ -97,9 +99,22 @@ def build_field_profile(geom, overrides=None):
         sl = terrain.field_slope(geom)
         sources["slope"] = sl["source"]
     except (FileNotFoundError, ValueError) as err:
-        sl = {"slope_pct_mean": None, "slope_pct_p90": None, "slope_class": "unknown",
-              "erosion_prone": False, "rusle_s": None, "source": "not available"}
-        warnings.append(f"Elevation data not available ({err}). Please say whether the field is sloping.")
+        soil_slope = getattr(s, "slope_pct", None)
+        if soil_slope is not None:
+            # fall back to SSURGO's area-weighted representative slope (slopegradwta): coarser than
+            # SRTM (map-unit average, no steepest-10 % value), but measured for these soils
+            sl = {"slope_pct_mean": soil_slope, "slope_pct_p90": None,
+                  "slope_class": terrain.slope_class(soil_slope),
+                  "erosion_prone": soil_slope >= SOIL_SLOPE_EROSION_PCT,
+                  "rusle_s": round(terrain.rusle_s_factor(soil_slope), 3),
+                  "source": "USDA SSURGO map-unit slope (slopegradwta), area-weighted - SRTM not available"}
+            sources["slope"] = sl["source"]
+            warnings.append("Slope taken from the soil survey (elevation data not available); "
+                            "please confirm whether the field is sloping.")
+        else:
+            sl = {"slope_pct_mean": None, "slope_pct_p90": None, "slope_class": "unknown",
+                  "erosion_prone": False, "rusle_s": None, "source": "not available"}
+            warnings.append(f"Elevation data not available ({err}). Please say whether the field is sloping.")
 
     # crop history
     try:

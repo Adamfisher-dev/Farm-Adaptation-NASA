@@ -204,6 +204,13 @@ def load_tasks() -> dict:
     return json.loads(TASKS_FILE.read_text(encoding="utf-8")) if TASKS_FILE.exists() else {}
 
 
+def body_fingerprint(body: dict) -> str:
+    """Short hash of a task's params (points, layers, dates): a change means the saved
+    result is for different points and the task must be submitted again."""
+    import hashlib
+    return hashlib.sha1(json.dumps(body.get("params", body), sort_keys=True).encode()).hexdigest()[:12]
+
+
 def save_tasks(tasks: dict) -> None:
     TASKS_FILE.parent.mkdir(parents=True, exist_ok=True)
     TASKS_FILE.write_text(json.dumps(tasks, indent=2), encoding="utf-8")
@@ -217,8 +224,12 @@ def run_all(token, jobs, wait_minutes=10, poll_s=30) -> dict:
     """
     tasks = load_tasks()
     for name, body, _ in jobs:                       # 1. submit everything first
+        fp = body_fingerprint(body)
+        if name in tasks and tasks[name].get("fingerprint") != fp:
+            print(f"  {name}: points, layers or dates changed since it was submitted - resubmitting")
+            del tasks[name]
         if name not in tasks:
-            tasks[name] = {"task_id": submit(token, body), "downloaded": False}
+            tasks[name] = {"task_id": submit(token, body), "downloaded": False, "fingerprint": fp}
             save_tasks(tasks)
             print(f"  {name}: submitted (task {tasks[name]['task_id']})")
         elif not tasks[name]["downloaded"]:

@@ -10,7 +10,7 @@ Output : compact daily table sample_data/smap_daily.csv (committed, small):
            point_id, date, sm_surface_l3, sm_surface_l4, sm_rootzone_l4   [m3/m3]
 
     from fieldshift.data.smap import load_smap, seasonal_anomaly
-    df = load_smap("centre")                 # DatetimeIndex, one column per series
+    df = load_smap("flat_tiled")             # DatetimeIndex, one column per series
     anom = seasonal_anomaly(df["sm_rootzone_l4"])
 
 What SMAP is and is not: a 9 km satellite footprint (L3) or model estimate constrained by
@@ -88,18 +88,21 @@ def parse_raw(csv_paths) -> pd.DataFrame:
     return daily[["point_id", "date"] + SERIES].sort_values(["point_id", "date"])
 
 
-def build_compact(raw_dir: Path = RAW_DIR, out: Path = config.SMAP_DAILY_CSV) -> pd.DataFrame:
+def build_compact(raw_dir: Path = RAW_DIR, out: Path = config.SMAP_DAILY_CSV, points=None) -> pd.DataFrame:
+    """points: keep only these point ids (e.g. config.EXAMPLE_POINTS) - drops results of older requests."""
     paths = sorted(Path(raw_dir).glob("*.csv"))
     if not paths:
         raise FileNotFoundError(f"No AppEEARS SMAP CSVs in {raw_dir}. Run scripts/prefetch_field_data.py smap.")
     daily = parse_raw(paths)
+    if points is not None:
+        daily = daily[daily["point_id"].isin(list(points))]
     out.parent.mkdir(parents=True, exist_ok=True)
     daily.to_csv(out, index=False, float_format="%.4f", date_format="%Y-%m-%d")
     return daily
 
 
 # --- Using the compact table -----------------------------------------------------------
-def load_smap(point_id: str = "centre", path: Path = config.SMAP_DAILY_CSV) -> pd.DataFrame:
+def load_smap(point_id: str = config.DEFAULT_POINT, path: Path = config.SMAP_DAILY_CSV) -> pd.DataFrame:
     """Daily SMAP series for one example point (DatetimeIndex; NaN = no good value)."""
     if not Path(path).exists():
         raise FileNotFoundError(f"{path} not found. Run scripts/prefetch_field_data.py smap.")

@@ -133,7 +133,7 @@ def hls_jobs():
 
 def build_smap():
     from fieldshift.data import smap
-    daily = smap.build_compact()
+    daily = smap.build_compact(points=config.EXAMPLE_POINTS)
     print(f"SMAP: {len(daily)} point-days -> {config.SMAP_DAILY_CSV}")
     print(daily.groupby("point_id")[smap.SERIES].median().round(3).to_string())
     print("  (expect roughly 0.15-0.40 m3/m3 for Iowa soils)")
@@ -141,7 +141,7 @@ def build_smap():
 
 def build_hls():
     from fieldshift.data import ndvi
-    obs = ndvi.build_compact()
+    obs = ndvi.build_compact(fields=config.EXAMPLE_POINTS)
     print(f"HLS: {len(obs)} clear field-dates -> {config.HLS_NDVI_CSV}")
     print(obs.groupby(["field", "sensor"])["ndvi"].describe()[["count", "50%", "max"]].round(2).to_string())
     print("  (expect summer peaks around 0.8-0.9 and winter values around 0.1-0.3)")
