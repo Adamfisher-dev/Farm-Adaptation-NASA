@@ -93,7 +93,48 @@ def cdl_years(first=2008, last=2025):
             path.write_bytes(requests.get(m.group(1), timeout=600).content)
             print(f"  CDL {year}: {path.stat().st_size / 1e6:.1f} MB")
         except requests.RequestException as err:
-            print(f"  CDL {year} failed: {err} (fallback: CropScape website, AOI = Story County)")
+            print(f"  CDL {year}: CropScape failed ({type(err).__name__}); trying Planetary Computer")
+            try:
+                cdl_from_planetary_computer(year, path)
+                print(f"  CDL {year}: {path.stat().st_size / 1e6:.1f} MB (Planetary Computer copy)")
+            except Exception as err2:  # noqa: BLE001 - report and carry on with other years
+                print(f"  CDL {year} failed there too: {err2}")
+
+
+PC_STAC = "https://planetarycomputer.microsoft.com/api/stac/v1/search"
+PC_TOKEN = "https://planetarycomputer.microsoft.com/api/sas/v1/token/usda-cdl"
+
+
+def cdl_from_planetary_computer(year, path, bbox=BBOX):
+    """Same USDA NASS CDL (30 m, EPSG:5070) from Microsoft Planetary Computer's public copy:
+    reads only the county window from the cloud-optimised tiles. No login needed.
+    Writes a GeoTIFF clipped to the bbox (CropScape files are clipped to the county outline;
+    cdl.py reads by field polygon, so the result is the same for fields in the county)."""
+    import geopandas as gpd
+    import rasterio
+    from rasterio.merge import merge
+    from shapely.geometry import box
+    r = requests.post(PC_STAC, json={"collections": ["usda-cdl"], "bbox": list(bbox),
+                                     "datetime": f"{year}-01-01/{year}-12-31", "limit": 50}, timeout=60)
+    r.raise_for_status()
+    hrefs = [f["assets"]["cropland"]["href"] for f in r.json()["features"]
+             if f["properties"].get("usda_cdl:type") == "cropland" and "cropland" in f["assets"]]
+    if not hrefs:
+        raise FileNotFoundError(f"no {year} cropland tiles on Planetary Computer")
+    token = requests.get(PC_TOKEN, timeout=60).json()["token"]
+    bounds = gpd.GeoSeries([box(*bbox)], crs="EPSG:4326").to_crs("EPSG:5070").total_bounds
+    sources = [rasterio.open(f"{h}?{token}") for h in hrefs]
+    try:
+        data, transform = merge(sources, bounds=tuple(bounds))
+        profile = sources[0].profile
+    finally:
+        for src in sources:
+            src.close()
+    profile.update(driver="GTiff", height=data.shape[1], width=data.shape[2], transform=transform,
+                   compress="deflate", tiled=False)
+    profile.pop("blockxsize", None); profile.pop("blockysize", None)
+    with rasterio.open(path, "w", **profile) as dst:
+        dst.write(data)
 
 
 def _appeears_dates(product_id, start):
