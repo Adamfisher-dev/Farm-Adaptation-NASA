@@ -7,12 +7,16 @@
 #   literature          -> key of Rotation.scores from rotations.py (ordinal 0-3, content/rotations.yaml)
 #   data                -> income module (not built yet)
 #
+# erosion_exposure = bare days with erosive rain x the field's RUSLE slope factor S. Its scale (5) is
+# about corn-soybean on a 7 % slope here (6.2 days x S 0.79), so cutting bare-and-wet days counts
+# fully on erosive fields and only partly on flat ones (a flat 1.8 % field reaches ~1.4).
+#
 # drought_risk uses the water deficit in the crop's sensitive window (mm), not stressed days:
 # stressed days count any stress, however slight, and are high even in normal years.
 criteria:
   drought_risk:     {type: simulated, column: drought_deficit_mm, statistic: cvar_0.10, direction: cost,    slider: drought,          unit: mm,           scale: 10.0, cap: 0.5}
   water_leaving:    {type: simulated, column: drainage_mm,        statistic: mean,      direction: cost,    slider: water_quality,    unit: mm_per_year,  scale: 20.0, cap: 0.5}
-  erosion_exposure: {type: counted,   column: bare_wet_days,      statistic: mean,      direction: cost,    slider: soil_erosion,     unit: days,         scale: 1.0,  cap: 0.5}
+  erosion_exposure: {type: counted,   column: bare_wet_days,      statistic: mean,      direction: cost,    slider: soil_erosion,     unit: days,         scale: 5.0,  cap: 0.5}
   som_proxy:        {type: literature,column: som_proxy,          statistic: fixed,     direction: benefit, slider: soil_erosion,     unit: ordinal_0_3}
   n_benefit:        {type: literature,column: n_benefit,          statistic: fixed,     direction: benefit, slider: pests_fertiliser, unit: ordinal_0_3}
   pest_break:       {type: literature,column: pest_break,         statistic: fixed,     direction: benefit, slider: pests_fertiliser, unit: ordinal_0_3}

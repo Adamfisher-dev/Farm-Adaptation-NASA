@@ -129,7 +129,7 @@ def field_profile(lat, lon, geojson=None, overrides=None):
 
 # --- Run -------------------------------------------------------------------------------------------
 def run_basic(lat, lon, rotations=None, awc_mm_per_m=None, tile_drained=None, allow_download=True,
-              geojson=None, overrides=None, use_runoff=False, income=None):
+              geojson=None, overrides=None, use_runoff=False, income=None, profile=None):
     """Everything the app shows, as plain Python / pandas objects.
 
     Soil water capacity, tile drainage and slope come from the field profile (SSURGO/SRTM)
@@ -155,7 +155,7 @@ def run_basic(lat, lon, rotations=None, awc_mm_per_m=None, tile_drained=None, al
     df, meta, et0 = load_weather(lat, lon, allow_download)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        prof = field_profile(lat, lon, geojson, overrides)
+        prof = profile or field_profile(lat, lon, geojson, overrides)
     awc = float(awc_mm_per_m if awc_mm_per_m is not None else prof.awc_mm_per_m)
     tiled = bool(tile_drained if tile_drained is not None else prof.tile_drained)
     hsg = prof.hydrologic_group if use_runoff else None
@@ -332,14 +332,27 @@ def validate(out: dict, smap_path=None, ndvi_path=None, smap_max_km: float = 15.
     else:
         notes.append("Satellite greenness (HLS) is only extracted for the example fields; "
                      "this field is not one of them.")
-    if sm is None and nd is None:
-        return {"available": False, "point": pid, "distance_km": round(km, 1), "notes": notes,
-                "comparisons": {}, "ndvi": None, "sentences": []}
-
-    starts = [s.index.min().year for s in ([sm] if sm is not None else []) + ([nd] if nd is not None else [])]
-    ends = [s.index.max().year for s in ([sm] if sm is not None else []) + ([nd] if nd is not None else [])]
-    years = list(range(max(min(starts), config.WATER_START_YEAR), min(max(ends), config.WATER_END_YEAR) + 1))
+    obs = [s for s in (sm, nd) if s is not None]
+    if obs:
+        first, last = min(s.index.min().year for s in obs), max(s.index.max().year for s in obs)
+    else:   # no satellite files yet: still compare with POWER's modelled root-zone wetness over the CDL years
+        cdl_years = [int(y) for y in out["field"].get("crop_history", {})]
+        first, last = (min(cdl_years), max(cdl_years)) if cdl_years else (config.WATER_END_YEAR - 9, config.WATER_END_YEAR)
+    years = list(range(max(first, config.WATER_START_YEAR), min(last, config.WATER_END_YEAR) + 1))
     hist = {str(y): c for y, c in out["field"].get("crop_history", {}).items()}
+    guess = out["field"].get("existing_rotation_guess")
+    cycle = len(guess) if guess else 2
+    filled = []
+    for y in years:                      # a missing CDL year (e.g. 2018) -> same crop as one cycle earlier/later
+        if str(y) not in hist and hist:
+            for alt in (y - cycle, y + cycle):
+                if str(alt) in hist:
+                    hist[str(y)] = hist[str(alt)]
+                    filled.append(f"{y} (as {alt})")
+                    break
+    if filled:
+        notes.append(f"CDL has no map for {', '.join(filled)}; that year's crop is assumed from the "
+                     f"{cycle}-year rotation cycle.")
     if not all(str(y) in hist for y in years):
         guess = out["field"].get("existing_rotation_guess") or [[c] for c in DEFAULT_EXISTING]
         seq = [y[0] if isinstance(y, (list, tuple)) else y for y in guess]
@@ -371,3 +384,73 @@ def validate(out: dict, smap_path=None, ndvi_path=None, smap_max_km: float = 15.
         sentences.append(val.ndvi_sentence(ndvi_res))
     return {"available": True, "point": pid, "distance_km": round(km, 1), "years": [years[0], years[-1]],
             "notes": notes, "comparisons": comparisons, "ndvi": ndvi_res, "sentences": sentences}
+
+
+# --- Everything for one field, in the playbook order (6.1) ---------------------------------------------
+def run_analysis(lat: float, lon: float, answers: dict | None = None, weights: dict | None = None,
+                 geojson=None, income: dict | None = None, n_boot: int = 1000, replay_year: int | None = None,
+                 allow_download: bool = True) -> dict:
+    """Field -> existing rotation -> candidates -> water model -> scores -> uncertainty -> what to show.
+
+    answers (all optional; the farmer's answers win over the data):
+        existing_rotation  e.g. ["corn", "soybean"]  (else the CDL guess, else corn-soybean)
+        soil_class, tile_drained, erosion_prone      (field overrides, see data/field.py)
+        livestock_or_hay_buyer, hay_equipment, small_grain_buyer, can_seed_cover (True/False),
+        openness ("yes" | "maybe" | "no"), current_crops (only used when openness == "no")
+    weights: app slider weights {drought, water_quality, soil_health, income, pests}
+    income:  {rotation name: USD per acre per year}, when an income module exists
+    """
+    answers = dict(answers or {})
+    weights = weights or {k: 1.0 for k in APP_SLIDERS}
+    overrides = {k: answers.get(k) for k in ("soil_class", "tile_drained", "erosion_prone", "existing_rotation")
+                 if answers.get(k) is not None}
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        prof = field_profile(lat, lon, geojson, overrides)
+
+    existing_from = "farmer" if answers.get("existing_rotation") else "CDL guess" if prof.existing_rotation_guess else "default"
+    existing = answers.get("existing_rotation") or prof.existing_rotation_guess or DEFAULT_EXISTING
+    existing = [y[0] if isinstance(y, (list, tuple)) and len(y) == 1 else y for y in existing]
+    if "corn" in existing and not answers.get("existing_rotation"):      # read it from the corn year
+        k = existing.index("corn")
+        existing = existing[k:] + existing[:k]
+
+    cands, removed = candidates(
+        want_cover=answers.get("can_seed_cover", True),
+        hay_buyer=answers.get("livestock_or_hay_buyer", False),
+        hay_equipment=answers.get("hay_equipment", False),
+        open_to_new=answers.get("openness", "maybe") != "no",
+        current_crops=answers.get("current_crops"),
+        small_grain_buyer=answers.get("small_grain_buyer", True),
+        existing_rotation=existing)
+    rotations = {c.name: c.plan for c in cands}
+    out = run_basic(lat, lon, rotations=rotations, allow_download=allow_download, geojson=geojson,
+                    overrides=overrides, income=income, profile=prof)
+    out["baseline"] = cands[0].name if cands[0].name in out["tables"] else out["baseline"]
+
+    robust = robust_scores(out, weights, n_boot=n_boot)
+    point = score_details(out, weights)
+    ranking = list(robust["summary"].index)
+    picks = top_options(out, ranking)
+    by_name = {c.name: c for c in cands}
+    year = replay_year or 2012
+    return {
+        "field": out["field"],
+        "existing": {"rotation": existing, "from": existing_from, "name": out["baseline"]},
+        "candidates": {c.name: c.to_dict() for c in cands},
+        "removed": removed,
+        "shown": [{"name": out["baseline"], "tier": "current"}] + picks,
+        "ranking": robust["summary"],
+        "point_scores": point,
+        "criteria_raw": out["criteria_raw"],
+        "criteria_ranges": robust["criteria"],
+        "stressed_years": robust["stressed_years"],
+        "robustness": robust.get("robustness"),
+        "replay": replay(out, year),
+        "validation": validate(out),
+        "snapshot": out["snapshot"],
+        "notable_years": out["notable_years"],
+        "flags": {n: by_name[n].flags for n in by_name},
+        "dropped_criteria": robust["dropped"],
+        "run": out,                      # everything else (tables, weather, ...) for charts
+    }
