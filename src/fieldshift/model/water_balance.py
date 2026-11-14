@@ -60,6 +60,10 @@ MAX_SURPLUS_MM = 50.0         # water above field capacity the soil can hold bef
                               # off (roughly saturation - FC). PLACEHOLDER
 WATERLOGGED_MM = 5.0          # surplus above this at the end of a day = waterlogged day
 INITIAL_FRACTION = 1.0        # start at field capacity (Iowa soils usually recharge over winter)
+ERODING_RAIN_MM = 12.7        # 0.5 inch: RUSLE ignores smaller storms (Renard et al. 1997, AH-703)
+EPS = 1e-9                    # mm; ignore floating-point dust when checking for overflow
+BARE_P = 0.5                  # p shown for bare days in bucket_params() (not used for stress)
+STATE_FROM_ROLE = {"cash": "crop", "cover": "cover", "bare": "bare"}
 
 # SCS curve numbers (antecedent condition II), USDA TR-55 Table 2-2, cultivated
 # agricultural land, straight row, good hydrologic condition. VERIFY before use.
@@ -105,6 +109,7 @@ def run_water_balance(
     awc_mm_per_m: float,
     tile_drained: bool,
     hydrologic_group: str | None = None,
+    runoff_fraction: float = 0.0,
     untiled_drain_mm_day: float = UNTILED_DRAIN_MM_DAY,
     max_surplus_mm: float = MAX_SURPLUS_MM,
     initial_fraction: float = INITIAL_FRACTION,
@@ -118,7 +123,8 @@ def run_water_balance(
     crop_table    output of crops.daily_crop_table for the same dates
     awc_mm_per_m  plant-available water capacity [mm per m of soil] (SSURGO aws0100wta x 10)
     tile_drained  True if the field has tile drainage
-    hydrologic_group  "A".."D" from SSURGO hydgrpdcd, or None for no runoff (MVP)
+    hydrologic_group  "A".."D" from SSURGO hydgrpdcd -> curve-number runoff; None -> runoff_fraction
+    runoff_fraction   share of each day's rain that runs off when no hydrologic group (default 0)
 
     Returns a daily DataFrame (see column list at the end of this function).
     Raises ValueError if any input day is missing (ET0 is NaN before 1984 because
@@ -185,7 +191,10 @@ def run_water_balance(
         ks = 1.0 if dr <= raw else max((taw - dr) / ((1.0 - p_day) * taw), 0.0)
 
         # 3) rain -> runoff / infiltration
-        ro = curve_number_runoff(P[i], _cn_for(crop[i], hydrologic_group)) if hydrologic_group else 0.0
+        if hydrologic_group:
+            ro = curve_number_runoff(P[i], _cn_for(crop[i], hydrologic_group))
+        else:
+            ro = runoff_fraction * P[i]
         inf = P[i] - ro
         sw_root += inf
 
@@ -194,10 +203,11 @@ def run_water_balance(
         sw_root -= eta
 
         # 5) excess above field capacity: root zone -> lower zone -> surplus -> drainage
-        excess = max(sw_root - taw, 0.0)
+        # (overflows below EPS are rounding noise from the layer moves: leave them in place)
+        excess = sw_root - taw if sw_root - taw > EPS else 0.0
         sw_root -= excess
         sw_lower += excess
-        excess = max(sw_lower - taw_lower, 0.0)
+        excess = sw_lower - taw_lower if sw_lower - taw_lower > EPS else 0.0
         sw_lower -= excess
         surplus += excess
         dp = surplus if tile_drained else min(surplus, untiled_drain_mm_day)
@@ -234,16 +244,22 @@ def run_water_balance(
     has_crop = df["role"] != "bare"
     df["stressed"] = has_crop & (df["ks"] < 1.0)
     df["waterlogged"] = df["surplus"] > WATERLOGGED_MM
+    df["state"] = df["role"].map(STATE_FROM_ROLE)
+    df["initial_storage"] = initial_fraction * a * PROFILE_DEPTH_M
     df.attrs["initial_storage"] = initial_fraction * a * PROFILE_DEPTH_M
-    # columns: precip, et0, runoff, infiltration, etc, ks, eta, drainage, depletion, taw, raw,
-    #          sw_root, sw_lower, surplus, kc, root_depth_m, deficit, storage, crop, role,
-    #          sensitive, rotation_year, stressed, waterlogged   (all water in mm or mm/day)
+    # aliases used by tests/test_water_balance.py and scripts/check_water_balance.py
+    df["rain"], df["w1"], df["w2"], df["wet"] = df["precip"], df["sw_root"], df["sw_lower"], df["surplus"]
+    # columns: precip (= rain), et0, runoff, infiltration, etc, ks, eta, drainage, depletion, taw, raw,
+    #          sw_root (= w1), sw_lower (= w2), surplus (= wet), kc, root_depth_m, deficit, storage,
+    #          crop, role, state, sensitive, rotation_year, stressed, waterlogged, initial_storage
+    #          (all water in mm or mm/day)
     return df
 
 
 def mass_balance_error(daily: pd.DataFrame) -> float:
     """sum(P) - sum(RO) - sum(ETa) - sum(DP) - (S_end - S_start); should be ~0 mm."""
-    ds = daily["storage"].iloc[-1] - daily.attrs["initial_storage"]
+    start = daily["initial_storage"].iloc[0] if "initial_storage" in daily else daily.attrs["initial_storage"]
+    ds = daily["storage"].iloc[-1] - start
     return float(daily["precip"].sum() - daily["runoff"].sum() - daily["eta"].sum()
                  - daily["drainage"].sum() - ds)
 
@@ -258,11 +274,16 @@ def yearly_summary(daily: pd.DataFrame) -> pd.DataFrame:
         waterlogged_days      surplus > WATERLOGGED_MM
         stressed_days_season  days with Ks < 1 while any crop is in the ground
         bare_days             days with no living crop
-        bare_wet_days         bare days with heavy rain (> config.HEAVY_RAIN_MM) - erosion exposure
-        cash_crop             main crop that year (for labels / phase pooling)
+        bare_wet_days         bare days with erosive rain (> ERODING_RAIN_MM = 12.7 mm, RUSLE) - erosion exposure
+        bare_wet_spring_days  the same, March-June only (before canopy closure)
+        cash_crop / main_crop main crop that year (for labels / phase pooling)
+    Also, under the names used in tests/test_water_balance.py: rain_mm (= precip_mm),
+    deficit_sensitive_mm (= drought_deficit_mm), stressed_sensitive_days (= drought_stress_days).
     """
     g = daily.groupby(daily.index.year)
     sens = daily["sensitive"]
+    m = daily.index.month
+    bare_wet = (daily["role"] == "bare") & (daily["precip"] > ERODING_RAIN_MM)
     out = pd.DataFrame({
         "drought_stress_days": (daily["stressed"] & sens).groupby(daily.index.year).sum(),
         "drought_deficit_mm": daily["deficit"].where(sens, 0.0).groupby(daily.index.year).sum(),
@@ -274,12 +295,17 @@ def yearly_summary(daily: pd.DataFrame) -> pd.DataFrame:
         "waterlogged_days": g["waterlogged"].sum(),
         "stressed_days_season": g["stressed"].sum(),
         "bare_days": (daily["role"] == "bare").groupby(daily.index.year).sum(),
-        "bare_wet_days": ((daily["role"] == "bare") & (daily["precip"] > config.HEAVY_RAIN_MM))
-                         .groupby(daily.index.year).sum(),
+        "bare_wet_days": bare_wet.groupby(daily.index.year).sum(),
+        "bare_wet_spring_days": (bare_wet & (m >= 3) & (m <= 6)).groupby(daily.index.year).sum(),
         "cash_crop": daily[daily["role"] == "cash"].groupby(daily[daily["role"] == "cash"].index.year)["crop"]
                      .agg(lambda s: s.value_counts().idxmax()),
     })
     out.index.name = "year"
+    out["cash_crop"] = out["cash_crop"].fillna("bare")
+    out["main_crop"] = out["cash_crop"]
+    out["rain_mm"] = out["precip_mm"]
+    out["deficit_sensitive_mm"] = out["drought_deficit_mm"]
+    out["stressed_sensitive_days"] = out["drought_stress_days"]
     return out
 
 
@@ -293,6 +319,7 @@ def simulate_rotation(
     end_year: int,
     hydrologic_group: str | None = None,
     crops: pd.DataFrame | None = None,
+    rotation_id: str | None = None,
     **wb_kwargs,
 ) -> pd.DataFrame:
     """Run every phase of a rotation and stack the yearly summaries.
@@ -308,7 +335,58 @@ def simulate_rotation(
         y = yearly_summary(daily)
         y.insert(0, "phase", phase)
         tables.append(y.reset_index())
-    return pd.concat(tables, ignore_index=True)
+    table = pd.concat(tables, ignore_index=True)
+    label = rotation_id or " / ".join("+".join(y) if isinstance(y, (list, tuple)) else y for y in rotation)
+    table.insert(0, "rotation_id", label)
+    return table
+
+
+# --- Second interface (names from the partner's version; same model underneath) -----------
+# Kept so tests/test_water_balance.py, scripts/check_water_balance.py and older callers work.
+def load_crops() -> pd.DataFrame:
+    """content/crops.csv if present, else crops.py's built-in table."""
+    return crops_mod.default_crop_table()
+
+
+def bucket_params(crop_table: pd.DataFrame, index=None) -> pd.DataFrame:
+    """crops.daily_crop_table() output -> columns kc, root_m, p, state, sensitive, crop
+    (p filled with BARE_P on bare days so there are no gaps)."""
+    params = pd.DataFrame({
+        "kc": crop_table["kc"],
+        "root_m": crop_table["root_depth_m"],
+        "p": crop_table["p"].fillna(BARE_P),
+        "state": crop_table["role"].map(STATE_FROM_ROLE),
+        "sensitive": crop_table["sensitive"].astype(bool),
+        "crop": crop_table["crop"],
+        "rotation_year": crop_table["rotation_year"],
+    }, index=crop_table.index)
+    return params if index is None else params.reindex(index)
+
+
+def run_bucket(rain, et0, params, awc_mm_per_m, tiled=True, runoff_fraction=0.0, start_full=True,
+               hydrologic_group=None):
+    """run_water_balance() taking bucket_params() output. start_full=False starts at wilting point."""
+    role_from_state = {v: k for k, v in STATE_FROM_ROLE.items()}
+    crop_table = pd.DataFrame({
+        "kc": params["kc"],
+        "root_depth_m": params["root_m"],
+        "p": params["p"].where(params["state"] != "bare"),     # bare: evaporation rule, not crop p
+        "crop": params["crop"],
+        "role": params["state"].map(role_from_state),
+        "sensitive": params["sensitive"].astype(bool),
+        "rotation_year": params["rotation_year"] if "rotation_year" in params else 0,
+    }, index=params.index)
+    return run_water_balance(rain, et0, crop_table, awc_mm_per_m, tiled, hydrologic_group,
+                             runoff_fraction=runoff_fraction, initial_fraction=1.0 if start_full else 0.0)
+
+
+def rotation_year_table(weather, et0, rotation, awc_mm_per_m, tiled=True, crops=None,
+                        rotation_id=None, hydrologic_group=None):
+    """simulate_rotation() over every full year in `weather` (needs PRECTOTCORR) -
+    the rotation x year table read by bootstrap, scoring and the hard-year replay."""
+    years = weather.index.year
+    return simulate_rotation(rotation, weather["PRECTOTCORR"], et0, awc_mm_per_m, tiled,
+                             int(years.min()), int(years.max()), hydrologic_group, crops, rotation_id)
 
 
 # --- Self-check on the real sample POWER data ----------------------------------------

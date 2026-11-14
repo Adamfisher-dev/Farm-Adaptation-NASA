@@ -184,7 +184,8 @@ terms:
     used_in: [calendar, cards]
   bare_and_wet_days:
     term: Bare-and-wet days
-    plain: Days when the field is bare and heavy rain falls - the main erosion risk.
+    plain: Days when the field is bare and a storm of more than 12.7 mm (half an inch) falls - the main erosion risk.
+    more: 12.7 mm is the RUSLE threshold for an erosive storm (smaller storms are ignored).
     used_in: [cards, charts]
   living_cover:
     term: Living cover
