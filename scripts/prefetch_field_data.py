@@ -19,6 +19,9 @@ Run from the repo root:   python scripts/prefetch_field_data.py [ssurgo] [srtm] 
            AppEEARS queues requests (minutes to hours). All requests are submitted together,
            then checked together for up to 10 minutes (--wait N to change). Rerun the same
            command later to download the rest; nothing is submitted twice.
+  ground : ground measurements for validation from the Iowa Environmental Mesonet (no login):
+           ISU Soil Moisture Network AEEI4 (soil moisture 30/60/127 cm, daily since 2013) and
+           NWS climate station IA0203 Ames 5 SE (temperature, rain) -> data/raw/ground/
 
 Service URLs and product names are from CLAUDE.md and marked (verify) there.
 """
@@ -137,6 +140,20 @@ def cdl_from_planetary_computer(year, path, bbox=BBOX):
         dst.write(data)
 
 
+def ground_stations():
+    from fieldshift.data import ground
+    for label, fetch, load in (("ISU soil moisture", ground.fetch_isusm, ground.parse_isusm),
+                               ("climate station", ground.fetch_climate, ground.parse_climate)):
+        try:
+            path = fetch()
+        except Exception as err:  # noqa: BLE001 - report and carry on
+            print(f"  {label} failed: {err}")
+            continue
+        table = load(path.read_text(encoding="utf-8"))
+        print(f"  {label}: {len(table)} days {table.index.min():%Y-%m-%d} to {table.index.max():%Y-%m-%d} -> {path}")
+        print("   ", table.describe().loc[["count", "mean"]].round(3).to_string().replace(chr(10), chr(10) + "    "))
+
+
 def _appeears_dates(product_id, start):
     """Request window: later of `start` and the product's first date, to the last full year."""
     from fieldshift.data import appeears
@@ -224,5 +241,7 @@ if __name__ == "__main__":
         srtm_tiles()
     if "cdl" in steps:
         cdl_years()
+    if "ground" in steps:
+        ground_stations()
     if "smap" in steps or "hls" in steps:
         appeears_requests("smap" in steps, "hls" in steps, wait)

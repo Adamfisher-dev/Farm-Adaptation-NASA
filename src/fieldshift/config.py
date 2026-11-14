@@ -90,6 +90,23 @@ MERRA2_LAT_STEP = 0.5
 MERRA2_LON_STEP = 0.625
 
 # ---------------------------------------------------------------------------
+# Ground measurements for validation (Iowa Environmental Mesonet, IEM; free, no login)
+# Station ids, coordinates and units checked against the IEM network tables and
+# variable list on 2026-11-14.
+# ---------------------------------------------------------------------------
+GROUND_DIR = DATA_RAW / "ground"
+IEM_URL = "https://mesonet.agron.iastate.edu/cgi-bin/request"
+# ISU Soil Moisture Network: nearest long-record station, ~10 km from the example fields.
+ISUSM_STATION = {"id": "AEEI4", "name": "Ames - Horticulture ISU-RDF",
+                 "lat": 42.1067, "lon": -93.5848, "start": "2013-11-14"}
+# Probe depths (inch -> cm) and IEM daily columns; units: soil moisture Vol %, temperature degF.
+ISUSM_DEPTHS = {"30cm": ("soil12vwc", "soil12t"), "60cm": ("soil24vwc", "soil24t"),
+                "127cm": ("soil50vwc", "soil50t")}
+# NWS cooperative climate station via IEM Climodat, 2-7 km from the example fields.
+CLIMATE_STATION = {"id": "IA0203", "network": "IACLIMATE", "name": "Ames 5 SE",
+                   "lat": 41.9519, "lon": -93.5655}
+
+# ---------------------------------------------------------------------------
 # NASA AppEEARS point extractions: SMAP soil moisture and HLS NDVI
 # Product ids, layer names, fill values and quality bits were checked against
 # the AppEEARS API (GET /product/{id}, GET /quality/{id}/{layer}/{value}) on
