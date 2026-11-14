@@ -37,10 +37,11 @@ Rotation format (rotations.py will produce these):
         C-S-O/A-A (Marsden)    [["corn"], ["soybean"], ["oats+alfalfa"], ["alfalfa"]]
 
 IMPORTANT - parameter values:
-  DEFAULT_CROPS below holds STARTING VALUES recalled from FAO-56 Tables 11, 12 and 22
-  and typical Iowa dates. Every row has verified=False. They must be checked against
-  FAO-56 and USDA "Usual Planting and Harvesting Dates" (2010) / NASS Crop Progress
-  and moved into content/crops.csv (load with load_crop_table(path)).
+  The crop table is read from content/crops.csv (edit that file to change the model).
+  DEFAULT_CROPS below is only a fallback copy used if that file is missing.
+  Values are STARTING VALUES recalled from FAO-56 Tables 11, 12 and 22 and typical
+  Iowa dates; every row has verified=False until checked against FAO-56 and USDA
+  "Usual Planting and Harvesting Dates" (2010) / NASS Crop Progress.
   Agronomist should review.
 
 No Streamlit calls in this file (project rule).
@@ -51,10 +52,15 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+from fieldshift import config
+
+CROPS_PATH = config.CONTENT_DIR / "crops.csv"
 
 # --- Global settings (simplifications; list in README "gaps") ----------------
 BARE_SOIL_KC = 0.30          # evaporation-only Kc for bare soil. SIMPLIFICATION - verify vs FAO-56 Ch. 6/11
@@ -76,7 +82,7 @@ REQUIRED_COLUMNS = [
     "source", "verified",
 ]
 
-# --- Default crop table (STARTING VALUES - verify, then move to content/crops.csv) ----
+# --- Fallback crop table (same values as content/crops.csv; used only if that file is missing) ----
 # kc_*: FAO-56 Table 12. l_*: stage lengths in days, FAO-56 Table 11.
 # root_max_m: lower end of FAO-56 Table 22 range (capped at 1 m anyway). p: FAO-56 Table 22.
 # *_md: month-day "MM-DD". Sensitive window = days when water stress hurts yield most.
@@ -107,13 +113,16 @@ DEFAULT_CROPS = pd.DataFrame(
 def load_crop_table(path: str | Path | None = None) -> pd.DataFrame:
     """Return the crop parameter table, indexed by crop name.
 
-    path=None -> built-in DEFAULT_CROPS (unverified starting values).
-    path=...  -> a CSV with REQUIRED_COLUMNS (the future content/crops.csv).
+    path=None -> content/crops.csv if it exists, else the built-in DEFAULT_CROPS (with a warning).
+    path=...  -> any CSV with REQUIRED_COLUMNS.
     """
     if path is None:
-        warnings.warn("Using built-in DEFAULT_CROPS (unverified starting values). "
-                      "Replace with content/crops.csv once verified.", stacklevel=2)
-        return DEFAULT_CROPS.copy()
+        if CROPS_PATH.exists():
+            path = CROPS_PATH
+        else:
+            warnings.warn(f"{CROPS_PATH} not found - using built-in DEFAULT_CROPS "
+                          "(unverified starting values).", stacklevel=2)
+            return DEFAULT_CROPS.copy()
 
     table = pd.read_csv(path, dtype={"plant_md": str, "harvest_md": str, "sensitive_start_md": str,
                                      "sensitive_end_md": str, "greenup_md": str, "dormancy_md": str})
@@ -124,6 +133,19 @@ def load_crop_table(path: str | Path | None = None) -> pd.DataFrame:
     if bad_kind:
         raise ValueError(f"{path}: unknown kind(s) {bad_kind}; allowed {KINDS}")
     return table.set_index("crop", drop=False)
+
+
+@lru_cache(maxsize=4)
+def _cached_table(path: str, mtime: float) -> pd.DataFrame:
+    return load_crop_table(path)
+
+
+def default_crop_table() -> pd.DataFrame:
+    """The crop table every function uses when none is passed: content/crops.csv
+    (re-read automatically when the file changes), else DEFAULT_CROPS."""
+    if CROPS_PATH.exists():
+        return _cached_table(str(CROPS_PATH), CROPS_PATH.stat().st_mtime)
+    return load_crop_table(None)
 
 
 # --- FAO-56 curves -----------------------------------------------------------
@@ -190,7 +212,7 @@ def build_segments(rotation, start_year: int, end_year: int, phase: int = 0,
            phase lets every weather year meet every crop (playbook 6.2).
     One extra year either side is built so crops crossing 1 January are complete.
     """
-    crops = DEFAULT_CROPS if crops is None else crops
+    crops = default_crop_table() if crops is None else crops
     n = len(rotation)
     if n == 0:
         raise ValueError("Rotation is empty")
@@ -262,7 +284,7 @@ def daily_crop_table(rotation, start_year: int, end_year: int, phase: int = 0,
         days_since_start days since this crop was planted / took over (-1 when bare)
         rotation_year   which year of the rotation (1..n) this date belongs to
     """
-    crops = DEFAULT_CROPS if crops is None else crops
+    crops = default_crop_table() if crops is None else crops
     dates = pd.date_range(f"{start_year}-01-01", f"{end_year}-12-31", freq="D")
     nd = len(dates)
 

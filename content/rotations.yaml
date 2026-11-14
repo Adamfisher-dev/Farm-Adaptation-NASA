@@ -1,0 +1,104 @@
+# Rotation library - read by src/fieldshift/model/rotations.py. Editing this file changes the model.
+# Candidates = base_sequences x cover_modifiers.
+# ids must match tests/mock_results.json (cs, csw, csorc, csoaa; none, rye_before_soy, rye).
+# "+" in a sequence = underseeded crop (crops.py format), e.g. oats+red_clover.
+#
+# ORDINAL SCORES (0-3) are STARTING VALUES set by the rules under score_rules, each with
+# a source for the direction of the effect. They are not measured values: an agronomist
+# should review them, and confidence says how solid each is.
+
+# --- What each crop needs from the farm (FarmInputs field names) ----------------------
+crop_requires:
+  alfalfa: [livestock_or_hay_buyer, hay_equipment]
+  oats: [small_grain_buyer]
+  winter_wheat: [small_grain_buyer]
+  cereal_rye: [can_seed_cover]
+  red_clover: []            # sown with the oats: no extra field operation
+
+# Plain reason shown when a rotation is removed because the answer was "no".
+requirement_reasons:
+  livestock_or_hay_buyer: Needs livestock or a hay buyer
+  hay_equipment: Needs hay equipment (own or hired)
+  small_grain_buyer: Needs a buyer for oats or wheat within reach
+  can_seed_cover: Needs someone to seed a cover crop after harvest
+
+# --- Base sequences ------------------------------------------------------------------
+base_sequences:
+  - id: cs
+    name: Corn–soybean
+    sequence: [corn, soybean]
+    scores: {n_benefit: 1, pest_break: 1, som_proxy: 0}
+    confidence: medium
+    marsden: false
+    sources: ["Davis et al. 2012, PLOS ONE 7(10): e47149 (Marsden Farm 2-year system)"]
+  - id: csw
+    name: Corn–soybean–winter wheat
+    sequence: [corn, soybean, winter_wheat]
+    scores: {n_benefit: 1, pest_break: 2, som_proxy: 1}
+    confidence: low
+    marsden: false
+    sources: ["SARE (2007) Managing Cover Crops Profitably, 3rd ed. (winter small grains as cover) (verify)"]
+  - id: csorc
+    name: Corn–soybean–oats with red clover
+    sequence: [corn, soybean, "oats+red_clover"]
+    scores: {n_benefit: 2, pest_break: 2, som_proxy: 2}
+    confidence: medium
+    marsden: true
+    sources: ["Davis et al. 2012, PLOS ONE 7(10): e47149 (Marsden Farm 3-year system)"]
+  - id: csoaa
+    name: Corn–soybean–oats/alfalfa–alfalfa (Marsden-type 4-year)
+    sequence: [corn, soybean, "oats+alfalfa", alfalfa]
+    scores: {n_benefit: 3, pest_break: 3, som_proxy: 3}
+    confidence: medium
+    marsden: true
+    sources: ["Davis et al. 2012, PLOS ONE 7(10): e47149 (Marsden Farm 4-year system)"]
+
+# --- Cover-crop modifiers ------------------------------------------------------------
+cover_modifiers:
+  - id: none
+    name: no cover crop
+    suffix: ""
+    where: none               # none | before_soybean | every_bare_gap
+    score_adjust: {}
+  - id: rye_before_soy
+    name: cereal rye before soybean only
+    suffix: " + cereal rye before soybean"
+    where: before_soybean
+    score_adjust: {som_proxy: 1}
+    sources: ["Iowa State University Extension: cereal rye before soybean (verify exact publication)"]
+  - id: rye
+    name: cereal rye in every bare winter gap
+    suffix: " + cereal rye"
+    where: every_bare_gap
+    score_adjust: {som_proxy: 2}
+    sources: ["SARE (2007) Managing Cover Crops Profitably, 3rd ed. (verify)"]
+
+cover_crop: cereal_rye
+
+# --- How the ordinal scores were set (shown on the evidence page) --------------------
+# Same rules score a farmer's own rotation when it is not in the library (confidence low).
+score_rules:
+  n_benefit:
+    meaning: Nitrogen supplied by legumes to the following corn (less fertiliser needed)
+    rule: "0 = no legume; 1 = soybean only; 2 = soybean + a forage legume cover (red clover); 3 = a perennial legume (alfalfa) in the rotation"
+    sources: ["Iowa State University nitrogen rate guidelines for corn - lower N rate for corn after soybean (verify)",
+              "Davis et al. 2012 - synthetic N much lower in the 3- and 4-year systems"]
+  pest_break:
+    meaning: How well the rotation breaks pest, disease and weed cycles
+    rule: "1 = two crops alternating; 2 = three different crops; 3 = four or more years including a perennial. Minus 1 for corn after corn (rootworm)"
+    sources: ["Gray et al. 2009, Annual Review of Entomology 54: 303-321 (corn rootworm and rotation) (verify)",
+              "Davis et al. 2012 - less herbicide and lower weed biomass in longer rotations"]
+  som_proxy:
+    meaning: Expected direction of soil organic matter change (slow, years to decades)
+    rule: "0 = corn/soybean only; +1 for a small grain (oats, wheat) in the sequence; +1 for an underseeded legume (red clover); 3 = perennial in rotation; cover crops add score_adjust; capped at 3"
+    sources: ["SARE (2007) Managing Cover Crops Profitably, 3rd ed. (verify)"]
+
+# --- Flag texts on the cards (the code decides when each applies) ------------------------
+flags:
+  rye_before_corn: "Cereal rye before corn can reduce corn yield (nitrogen tie-up): terminate about 10-14 days before planting corn - check with Iowa State Extension."
+  cover_insurance: "Check cover-crop termination rules with your crop insurer."
+  oats_buyer: "Confirm an oat buyer within hauling distance."
+  wheat_buyer: "Confirm a wheat buyer within hauling distance."
+  alfalfa: "Alfalfa holds the field for two seasons and needs hay equipment, labour and a buyer or livestock."
+  marsden: "Marsden Farm results describe whole systems (the longer rotations also received manure and far less herbicide), not rotation length alone."
+  not_open: "You said you are not looking to try new crops: shown for comparison only."

@@ -1,0 +1,268 @@
+# Plain-language glossary for the app (tooltips, evidence page, cards).
+# Source: playbook Appendix C, extended with terms used by the model files.
+# Keep "plain" to one or two sentences a farmer can read without training.
+# "more" is optional extra detail for the evidence page. "used_in" says where the term shows up.
+
+terms:
+  # --- Water and weather -------------------------------------------------------
+  evapotranspiration:
+    term: Evapotranspiration (ET)
+    plain: Water leaving the field to the air - evaporation from the soil plus water released by plants through their leaves.
+    used_in: [evidence, cards]
+  reference_et:
+    term: Reference ET (ET0)
+    plain: How much water a standard patch of well-watered grass would use today - "how thirsty the weather is".
+    more: Calculated with the FAO-56 Penman-Monteith equation from NASA POWER sunshine, temperature, humidity and wind.
+    used_in: [evidence, model/et0.py]
+  crop_coefficient:
+    term: Crop coefficient (Kc)
+    plain: How thirsty a crop is compared with that grass at its current growth stage (young corn uses far less, full-canopy corn about 1.2 times more).
+    used_in: [evidence, model/crops.py]
+  crop_water_use:
+    term: Crop water use (ETc)
+    plain: The water a crop would use today if the soil had plenty - reference ET times the crop coefficient.
+    used_in: [evidence, model/crops.py, model/water_balance.py]
+  water_balance:
+    term: Water balance (soil-water bucket)
+    plain: Daily bookkeeping of the soil's water - rain in; crop use, drainage and runoff out. What is left is tomorrow's soil water.
+    used_in: [evidence, model/water_balance.py]
+  field_capacity:
+    term: Field capacity
+    plain: How much water the soil holds after the extra has drained away - the bucket is "full".
+    used_in: [evidence]
+  awc_taw_raw:
+    term: AWC / TAW / RAW
+    plain: Water the soil can hold for plants per metre of soil / the total in the root zone / the part roots can take up easily.
+    more: AWC comes from the USDA soil survey (SSURGO). TAW = AWC x root depth. RAW = TAW x a crop-specific fraction (FAO-56).
+    used_in: [evidence, model/water_balance.py]
+  depletion:
+    term: Depletion
+    plain: How far the root zone is below "full" (field capacity).
+    used_in: [evidence]
+  water_stress:
+    term: Water stress
+    plain: Days when the soil is dry enough that the crop cannot take up all the water it wants, so it grows less.
+    more: The model counts a day as stressed when depletion passes the easily available water (FAO-56 stress coefficient Ks below 1).
+    used_in: [cards, charts]
+  sensitive_window:
+    term: Sensitive window
+    plain: The weeks when drought hurts yield most - for corn around pollination in July, for soybean during pod fill in August.
+    used_in: [cards, calendar]
+  drainage:
+    term: Drainage (water leaving the field)
+    plain: Water that soaks below the roots or leaves through tile drains. It carries nitrate with it, so less drainage usually means less nitrate loss.
+    used_in: [cards, charts]
+  runoff:
+    term: Runoff
+    plain: Rain that runs off the surface instead of soaking in - it can carry soil with it.
+    more: When used, estimated with the USDA curve-number method from the soil's hydrologic group and what is growing.
+    used_in: [evidence]
+  waterlogging:
+    term: Waterlogged day
+    plain: A day when the soil holds more water than it can drain, so roots lack air and fields may be too wet to work.
+    used_in: [cards]
+  tile_drainage:
+    term: Tile drainage
+    plain: Buried pipes that carry excess water (and nitrate) out of the field.
+    used_in: [inputs, cards]
+
+  # --- Climate --------------------------------------------------------------------
+  gdd:
+    term: GDD / heat units
+    plain: Accumulated warmth that drives crop development - more heat units, faster growth.
+    more: Corn method - daily average of max and min temperature, each held between 10 and 30 C, minus 10 C.
+    used_in: [snapshot]
+  frost_free_season:
+    term: Frost-free season
+    plain: Days between the last spring frost and the first autumn frost.
+    used_in: [snapshot]
+  dry_spell:
+    term: Dry spell
+    plain: A run of days in a row with less than 1 mm of rain.
+    used_in: [snapshot]
+  heavy_rain_day:
+    term: Heavy-rain day
+    plain: A day with more than 25 mm (about 1 inch) of rain - the storms that wash soil off bare fields.
+    used_in: [snapshot]
+  hot_day:
+    term: Hot day
+    plain: A day above 30 C (86 F); in July these stress corn during pollination.
+    used_in: [snapshot]
+  frost_risk:
+    term: Frost risk
+    plain: The chance of a night below 0 C after planting or before harvest. Low-lying spots can be colder than the regional figure.
+    used_in: [cards, evidence]
+  trend:
+    term: Trend
+    plain: Whether a measure has been rising or falling since 1981, and how sure we can be that the change is real.
+    more: Theil-Sen slope (robust to odd years) with a Mann-Kendall test.
+    used_in: [snapshot]
+
+  # --- NASA and other data --------------------------------------------------------
+  nasa_power:
+    term: NASA POWER
+    plain: NASA's daily weather record since 1981 for an area of about 50 km around your field - the same for all fields nearby.
+    more: Mostly reanalysis and satellite products (MERRA-2 for weather, CERES for sunshine; sunshine data starts in 1984), not a weather station on your farm.
+    used_in: [evidence, snapshot]
+  power_cell:
+    term: Climate grid cell
+    plain: The roughly 50 km square NASA POWER weather describes. Every field inside it gets the same weather in this tool.
+    used_in: [map, evidence]
+  reanalysis:
+    term: Reanalysis
+    plain: Weather "reconstructed" by combining a weather model with observations (for example NASA POWER / MERRA-2).
+    used_in: [evidence]
+  retrieval:
+    term: Retrieval
+    plain: Estimating something (for example soil moisture) from what a satellite actually measures, which is radiation.
+    used_in: [evidence]
+  modelled_soil_wetness:
+    term: Modelled soil wetness
+    plain: NASA POWER's soil wetness comes from a computer model, not a sensor in the ground - useful for patterns, not exact values.
+    used_in: [snapshot, evidence]
+  satellite_vs_ground:
+    term: Satellite vs ground measurement
+    plain: A ground sensor measures one spot directly; a satellite measures a wide area indirectly. Combining them gives coverage and a check on accuracy.
+    used_in: [evidence]
+  representativeness_error:
+    term: Representativeness error
+    plain: The difference between a point sensor and a satellite pixel simply because they measure different areas.
+    used_in: [evidence]
+  ndvi:
+    term: NDVI
+    plain: Satellite index of how green and leafy the ground is (bare soil about 0.1, dense crop about 0.8).
+    used_in: [evidence]
+  soil_moisture_anomaly:
+    term: Soil-moisture anomaly
+    plain: How unusually wet or dry the soil is for this time of year here.
+    used_in: [evidence]
+  smap:
+    term: SMAP
+    plain: NASA satellite that measures moisture in the top few centimetres of soil (since 2015), over areas of about 9-36 km.
+    used_in: [evidence]
+  srtm:
+    term: SRTM
+    plain: NASA elevation map at about 30 m detail, used to work out your field's slope.
+    used_in: [evidence, inputs]
+  cdl:
+    term: CDL (Cropland Data Layer)
+    plain: USDA map of which crop grew on every 30 m patch each year - used to pre-fill your past crops.
+    used_in: [inputs, evidence]
+  ssurgo:
+    term: SSURGO / map unit
+    plain: The USDA soil survey; a map unit is a mapped soil type with its measured properties.
+    used_in: [inputs, evidence]
+  hydrologic_soil_group:
+    term: Hydrologic soil group
+    plain: A (drains fast, little runoff) to D (drains slowly, more runoff).
+    used_in: [inputs, evidence]
+
+  # --- Crops and rotations --------------------------------------------------------
+  rotation:
+    term: Crop rotation
+    plain: The order in which crops follow each other on a field over the years, for example corn then soybean.
+    used_in: [cards]
+  cover_crop:
+    term: Cover crop
+    plain: A crop grown between cash crops to protect and feed the soil, not harvested.
+    used_in: [cards, calendar]
+  cover_termination:
+    term: Cover-crop termination
+    plain: Killing the cover crop before planting the next cash crop - timing matters for yield and for insurance rules.
+    used_in: [cards]
+  underseeding:
+    term: Underseeding
+    plain: Sowing a second crop (red clover, alfalfa) under oats so it is already established when the oats are harvested.
+    used_in: [cards]
+  legume:
+    term: Legume
+    plain: A plant (soybean, alfalfa, clover) whose root bacteria take nitrogen from the air, lowering fertiliser needs for the next crop.
+    used_in: [cards]
+  bare_days:
+    term: Bare-soil days
+    plain: Days with no living crop on the field - when soil is most exposed to erosion and nitrate loss.
+    used_in: [calendar, cards]
+  bare_and_wet_days:
+    term: Bare-and-wet days
+    plain: Days when the field is bare and heavy rain falls - the main erosion risk.
+    used_in: [cards, charts]
+  living_cover:
+    term: Living cover
+    plain: Share of the year with a growing crop or cover crop on the field.
+    used_in: [cards]
+  pest_break:
+    term: Pest and disease break
+    plain: Growing a different crop so pests that depend on one crop (such as corn rootworm or soybean cyst nematode) die out between years.
+    used_in: [cards]
+  soil_organic_matter:
+    term: Soil organic matter
+    plain: The living and decayed plant material in soil that holds water and nutrients. It changes slowly, over years to decades.
+    used_in: [cards]
+  rusle:
+    term: RUSLE
+    plain: Standard US equation estimating soil erosion from rain, soil, slope, cover and farming practices.
+    used_in: [evidence]
+  marsden_farm:
+    term: Marsden Farm study
+    plain: Iowa State University's long-running field trial comparing 2-, 3- and 4-year rotations near Ames.
+    more: Results describe whole systems (the longer rotations also had manure and much less herbicide), not rotation length alone.
+    used_in: [cards, evidence]
+
+  # --- How options are compared ---------------------------------------------------
+  tier:
+    term: Current / Small step / Bigger shift
+    plain: Current is what you grow now; a small step adds a cover crop to your crops; a bigger shift changes which crops you grow.
+    used_in: [results]
+  rotation_phase:
+    term: Rotation phase
+    plain: Which crop of the rotation is in the field in a given year. The model runs every phase so each past year's weather meets every crop.
+    used_in: [evidence]
+  hard_year_replay:
+    term: Hard-year replay
+    plain: Re-running each rotation through one real past year (for example the 2012 drought) to see how it would have coped.
+    used_in: [results]
+  bootstrap:
+    term: Bootstrap
+    plain: Reshuffling the past years many times to see the range of possible outcomes, not just the average.
+    used_in: [evidence]
+  cvar:
+    term: CVaR (bad-year average)
+    plain: The average outcome in the worst 10 % of years - "how bad are the bad years".
+    used_in: [evidence, cards]
+  decision_matrix:
+    term: Decision matrix
+    plain: A table of rotations against the things you care about, with each rotation's value for each.
+    used_in: [evidence]
+  swing_weight:
+    term: Priority weight
+    plain: How much each of your priorities counts when the options are added up - set by your sliders.
+    more: Technically a swing weight - how much you care about moving from worst to best on that measure.
+    used_in: [inputs, evidence]
+  rank_order_centroid:
+    term: Rank-order centroid
+    plain: A formula that turns a priority ranking (first, second, ...) into weights.
+    used_in: [evidence]
+  pareto_dominance:
+    term: Pareto dominance
+    plain: If option A is at least as good as B on every measure and better on one, B is never the better choice.
+    used_in: [results, evidence]
+  dirichlet_sampling:
+    term: Robustness check (Dirichlet sampling)
+    plain: Trying many slightly different priority weights near yours to see whether the top option stays on top.
+    used_in: [evidence]
+  p_rank_first:
+    term: Chance of ranking first
+    plain: How often an option comes out on top across all the reshuffled years and nudged priorities - for example "78 % of the time".
+    used_in: [results]
+  effective_sample_size:
+    term: Effective sample size
+    plain: How many "full-weight" years a weighted set of years is worth.
+    used_in: [evidence]
+  detrending:
+    term: Detrending
+    plain: Shifting older years' temperatures to today's average while keeping their day-to-day pattern.
+    used_in: [evidence]
+  confidence:
+    term: Confidence
+    plain: How solid the evidence behind an option is - high, medium or low. Low means check carefully with your agronomist.
+    used_in: [cards]

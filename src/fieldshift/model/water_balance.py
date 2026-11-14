@@ -49,6 +49,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from fieldshift import config
 from fieldshift.model import crops as crops_mod
 
 # --- Settings (starting values; list in README "gaps") -----------------------
@@ -257,6 +258,7 @@ def yearly_summary(daily: pd.DataFrame) -> pd.DataFrame:
         waterlogged_days      surplus > WATERLOGGED_MM
         stressed_days_season  days with Ks < 1 while any crop is in the ground
         bare_days             days with no living crop
+        bare_wet_days         bare days with heavy rain (> config.HEAVY_RAIN_MM) - erosion exposure
         cash_crop             main crop that year (for labels / phase pooling)
     """
     g = daily.groupby(daily.index.year)
@@ -272,6 +274,8 @@ def yearly_summary(daily: pd.DataFrame) -> pd.DataFrame:
         "waterlogged_days": g["waterlogged"].sum(),
         "stressed_days_season": g["stressed"].sum(),
         "bare_days": (daily["role"] == "bare").groupby(daily.index.year).sum(),
+        "bare_wet_days": ((daily["role"] == "bare") & (daily["precip"] > config.HEAVY_RAIN_MM))
+                         .groupby(daily.index.year).sum(),
         "cash_crop": daily[daily["role"] == "cash"].groupby(daily[daily["role"] == "cash"].index.year)["crop"]
                      .agg(lambda s: s.value_counts().idxmax()),
     })
@@ -312,7 +316,6 @@ if __name__ == "__main__":
     import json
     import warnings
 
-    from fieldshift import config
     from fieldshift.model.et0 import et0_from_power
 
     warnings.simplefilter("ignore")  # default-crop-table warning
@@ -341,11 +344,12 @@ if __name__ == "__main__":
         "C-S-O/A-A":     [["corn"], ["soybean"], ["oats+alfalfa"], ["alfalfa"]],
     }
     print(f"\nCell {cell}, AWC {AWC} mm/m, tiled={TILED}, {START}-{END}; means per rotation-year:")
-    print(f"{'rotation':<12} {'drainage':>9} {'ETa':>6} {'stress days':>12} {'deficit':>8} {'bare':>6}")
+    print(f"{'rotation':<12} {'drainage':>9} {'ETa':>6} {'stress days':>12} {'deficit':>8} {'bare':>6} {'bare+wet':>9}")
     for name, rot in rotations.items():
         t = simulate_rotation(rot, weather["PRECTOTCORR"], et0, AWC, TILED, START, END)
         print(f"{name:<12} {t.drainage_mm.mean():9.0f} {t.eta_mm.mean():6.0f} "
-              f"{t.drought_stress_days.mean():12.1f} {t.drought_deficit_mm.mean():8.1f} {t.bare_days.mean():6.0f}")
+              f"{t.drought_stress_days.mean():12.1f} {t.drought_deficit_mm.mean():8.1f} {t.bare_days.mean():6.0f}"
+              f" {t.bare_wet_days.mean():9.2f}")
 
     # does 2012 stand out for corn?
     t = simulate_rotation([["corn"], ["soybean"]], weather["PRECTOTCORR"], et0, AWC, TILED, START, END)

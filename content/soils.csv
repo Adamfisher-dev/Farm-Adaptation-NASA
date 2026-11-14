@@ -1,0 +1,10 @@
+soil_class,awc_mm_per_m,drainage_class,hydrologic_group,source,awc_min_mm_per_m,awc_max_mm_per_m,verified,notes
+sand,80,,A,"FAO-56 Table 19 (theta_FC - theta_WP 0.05-0.11, midpoint); HSG from USDA TR-55 (1986) texture guidance (verify)",50,110,False,fallback only - SSURGO value overrides
+loamy_sand,90,,A,"FAO-56 Table 19 (0.06-0.12, midpoint); HSG from USDA TR-55 (1986) texture guidance (verify)",60,120,False,fallback only - SSURGO value overrides
+sandy_loam,130,,A,"FAO-56 Table 19 (0.11-0.15, midpoint); HSG from USDA TR-55 (1986) texture guidance (verify)",110,150,False,fallback only - SSURGO value overrides
+loam,155,,B,"FAO-56 Table 19 (0.13-0.18, midpoint); HSG from USDA TR-55 (1986) texture guidance (verify)",130,180,False,"common on the Des Moines Lobe uplands (verify for Story County)"
+silt_loam,160,,B,"FAO-56 Table 19 (0.13-0.19, midpoint); HSG from USDA TR-55 (1986) texture guidance (verify)",130,190,False,fallback only - SSURGO value overrides
+silt,180,,B,"FAO-56 Table 19 (0.16-0.20, midpoint); HSG from USDA TR-55 (1986) texture guidance (verify)",160,200,False,fallback only - SSURGO value overrides
+silty_clay_loam,155,,D,"FAO-56 Table 19 (0.13-0.18, midpoint); HSG from USDA TR-55 (1986) texture guidance (verify)",130,180,False,"poorly drained depressions on the Des Moines Lobe are often silty clay loam (verify); D is undrained - tiled fields often behave as C"
+silty_clay,160,,D,"FAO-56 Table 19 (0.13-0.19, midpoint); HSG from USDA TR-55 (1986) texture guidance (verify)",130,190,False,fallback only - SSURGO value overrides
+clay,160,,D,"FAO-56 Table 19 (0.12-0.20, midpoint); HSG from USDA TR-55 (1986) texture guidance (verify)",120,200,False,fallback only - SSURGO value overrides
