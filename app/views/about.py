@@ -10,9 +10,9 @@ def render():
                    "Where the numbers come from, how they are used, and what the tool cannot know.")
 
     ui.section_heading("The challenge")
-    st.write("Orbital Acre is our answer to the NASA Space Apps Challenge 2026 - *Field Shift: Adapting Farms with NASA Data*. "
-             "Our tool helps a farmer explore crop-rotation options that build soil health and cope with "
-             "a changing climate, for one field at a time, in Iowa.")
+    st.write("Orbital Acre is our answer to the NASA Space Apps Challenge 2026 - *Field Shift: Adapting Farms "
+             "with NASA Data* - built for the Lincoln local event. It helps a farmer explore crop-rotation "
+             "options that build soil health and cope with a changing climate, one field at a time, in Iowa.")
 
     ui.section_heading("Data")
     st.markdown(
@@ -36,8 +36,12 @@ def render():
         "- Several values are starting points from published research and are marked for expert review."
     )
 
-    ui.section_heading("Team")
-    # EDIT: add your team name, members and a contact link here.
-    st.info("Team details go here - edit app/views/about.py.")
+    ui.section_heading("Team", sub="A&L Orbital")
+    st.html('<div class="fs-team">'
+            '<div class="m"><span class="av">A</span><div><b>Adam</b><span>Age 21</span></div></div>'
+            '<div class="m"><span class="av">L</span><div><b>Leo</b><span>Age 21</span></div></div>'
+            '</div>'
+            '<p class="fs-source">NASA Space Apps Challenge 2026 · Lincoln local event · '
+            'Challenge: Field Shift - Adapting Farms with NASA Data.</p>')
 
     st.caption("AI use: parts of the code and text were drafted with Claude (Anthropic) and reviewed by the team.")

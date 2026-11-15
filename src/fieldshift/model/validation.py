@@ -168,6 +168,7 @@ def compare_soil(model_wetness: pd.Series, obs: pd.Series, months=GROWING_SEASON
         "daily_anomaly": metrics(both["m"], both["o"]),
         "monthly_anomaly": metrics(monthly["m"], monthly["o"]),
         "raw": {"n": raw["n"], "r": raw["r"], "period": raw["period"]},
+        "monthly_series": monthly.round(3),     # month, m (model) and o (observed) anomalies - for charts
     }
 
 

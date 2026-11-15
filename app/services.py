@@ -43,8 +43,16 @@ def freeze(d: dict) -> tuple:
 
 @st.cache_data(show_spinner=False, max_entries=20)
 def analyse(lat: float, lon: float, answers_frozen: tuple, weights_frozen: tuple) -> dict:
+    import ui
     answers = {k: list(v) if isinstance(v, tuple) else v for k, v in answers_frozen}
-    return pipeline.run_analysis(lat, lon, answers=answers, weights=dict(weights_frozen), n_boot=N_BOOT)
+    res = pipeline.run_analysis(lat, lon, answers=answers, weights=dict(weights_frozen), n_boot=N_BOOT)
+    # What-if climates (warmer / drier) for the four rotations the results screen shows. A failure here
+    # must not lose the main analysis: the section then says it could not run.
+    try:
+        res["what_if"] = pipeline.what_if(res, rotations=list(ui.four_options(res).values()))
+    except Exception as err:                                   # noqa: BLE001 - shown to the farmer
+        res["what_if"] = {"error": str(err)}
+    return res
 
 
 @st.cache_data(show_spinner=False, max_entries=64)

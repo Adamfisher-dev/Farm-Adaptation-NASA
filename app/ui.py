@@ -277,6 +277,31 @@ h2 {{ font-size: 1.75rem !important; }}
     .fs-hero .steps {{ flex-direction: column; gap: 0.5rem; }}
     .fs-hero .arr {{ display: none; }}
 }}
+.fs-team {{ display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0.2rem 0 0.6rem; }}
+.fs-team .m {{ display: flex; align-items: center; gap: 0.75rem; background: {SAND}; border: 1px solid {SAND_LINE};
+               border-radius: 14px; padding: 0.8rem 1.2rem 0.8rem 0.8rem; min-width: 11rem; }}
+.fs-team .av {{ width: 2.8rem; height: 2.8rem; border-radius: 50%; background: {GREEN}; color: #fff; display: flex;
+                align-items: center; justify-content: center; font-weight: 800; font-size: 1.2rem; }}
+.fs-team b {{ display: block; font-size: 1.1rem; color: {INK}; }}
+.fs-team .m span:not(.av) {{ font-size: 0.85rem; opacity: 0.7; }}
+.fs-climate {{ display: inline-block; background: #e9f2e6; color: {GREEN_DARK}; border: 1px solid #cfe2c8;
+               border-radius: 10px; padding: 0.35rem 0.9rem; font-size: 0.9rem; font-weight: 600; margin: 0.2rem 0 0.4rem; }}
+.fs-why {{ font-size: 1rem; line-height: 1.55; margin: 0.5rem 0 0.9rem; max-width: 52rem; }}
+.fs-procon {{ display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.6rem; }}
+.fs-procon > div {{ background: #fff; border: 1px solid {SAND_LINE}; border-radius: 12px; padding: 0.85rem 1rem; }}
+.fs-procon h4 {{ font-size: 0.95rem; font-weight: 750; margin: 0 0 0.45rem; padding: 0; color: {INK}; }}
+.fs-procon ul {{ list-style: none; margin: 0; padding: 0; }}
+.fs-procon li {{ position: relative; padding-left: 1.5rem; margin: 0 0 0.45rem; font-size: 0.92rem; line-height: 1.45; }}
+.fs-procon li::before {{ position: absolute; left: 0; top: 0.05rem; width: 1.05rem; height: 1.05rem; border-radius: 50%;
+                         font-size: 0.7rem; font-weight: 800; color: #fff; display: flex; align-items: center;
+                         justify-content: center; }}
+.fs-procon .pro li::before {{ content: "✓"; background: {GREEN}; }}
+.fs-procon .con li::before {{ content: "!"; background: {AMBER}; }}
+.fs-gaps {{ font-size: 0.9rem; margin: 0 0 0.6rem; }}
+.fs-gaps summary {{ cursor: pointer; font-weight: 650; color: {SOIL}; }}
+.fs-gaps ul {{ margin: 0.4rem 0 0; padding-left: 1.2rem; }}
+.fs-gaps li {{ margin-bottom: 0.3rem; opacity: 0.85; }}
+@media (max-width: 640px) {{ .fs-procon {{ grid-template-columns: 1fr; }} }}
 .fs-h2 {{ display: flex; align-items: center; gap: 0.75rem; margin: 1.6rem 0 0.6rem; }}
 .fs-h2 .n {{ flex: 0 0 auto; width: 2.1rem; height: 2.1rem; border-radius: 50%; background: {GREEN}; color: #fff;
             display: flex; align-items: center; justify-content: center; font-weight: 750; font-size: 1.05rem; }}

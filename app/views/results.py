@@ -1,11 +1,14 @@
 """Step 3: results.
 
-Four sections, each with the same rotation switcher at the top (Current, Best fit, Rotation 2, Rotation 3;
-the switchers stay in sync):
-    1. Featured rotation   key numbers, comparison with what the farmer grows now, things to check
+Five numbered sections; the first three have the same rotation switcher at the top (Current, Best fit,
+Rotation 2, Rotation 3; the switchers stay in sync):
+    1. Featured rotation   key numbers, why this rotation, benefits and risks (content/rotations.yaml),
+                           comparison with what the farmer grows now, a one-line climate check
     2. Rotation calendar   what is in the field through the year
     3. Replay a hard year  that year vs a typical year
-    4. Where the data comes from
+    4. Trust               the water model checked against NASA SMAP, NASA POWER and ground sensors
+    5. Where the data comes from
+A downloadable one-page PDF report (report.py) sits at the top.
 Then one collapsed "More detail" area (all rotations, rotations left out, climate).
 """
 
@@ -61,6 +64,43 @@ def _header(label: str, name: str, cand: dict) -> None:
             f'<p class="fs-sub">{html.escape(years)}</p>')
 
 
+def _climate_line(r: dict, name: str) -> str:
+    """One line from the what-if scenarios (warmer / drier): does this rotation stay the top choice?"""
+    scores = (r.get("what_if") or {}).get("scores")
+    if scores is None or name not in scores.index:
+        return ""
+    wins, n = int(sum(scores[c].idxmax() == name for c in scores.columns)), len(scores.columns)
+    where = f"all {n}" if wins == n else f"{wins} of {n}"
+    return (f"Climate check: still the top choice in {where} climates we tested, from today's to 2 °C warmer "
+            "with 20% less summer rain.")
+
+
+def _about_rotation(r: dict, name: str) -> str:
+    """Why this rotation, its benefits and its risks: the hand-written text in content/rotations.yaml
+    (base rotation + cover crop), plus the field-specific checks from the analysis."""
+    from fieldshift.model import cards
+    try:
+        t = cards._texts(r, name)
+    except Exception:                                          # noqa: BLE001 - the numbers still show
+        return ""
+    checks = list(r["flags"].get(name, []))
+    checks += [f["sentence"] for f in r.get("risk_flags", {}).get(name, []) if f.get("level") in ("warn", "watch")]
+    risks = t["risks"] + [c for c in checks if c not in t["risks"]]
+
+    def items(xs, limit):
+        return "".join(f"<li>{html.escape(x)}</li>" for x in xs[:limit])
+
+    why = " ".join(t["why"])
+    out = f'<p class="fs-why">{html.escape(why)}</p>' if why else ""
+    out += ('<div class="fs-procon">'
+            f'<div class="pro"><h4>Benefits</h4><ul>{items(t["benefits"], 4)}</ul></div>'
+            f'<div class="con"><h4>Risks and things to check</h4><ul>{items(risks, 4)}</ul></div></div>')
+    if t["gaps"]:
+        out += ('<details class="fs-gaps"><summary>Good to know</summary><ul>'
+                f'{items(t["gaps"], 4)}</ul></details>')
+    return out
+
+
 # --- 1. featured ----------------------------------------------------------------------------------------
 def _featured(r: dict, label: str, name: str, labels: list):
     cand = r["candidates"][name]
@@ -93,15 +133,16 @@ def _featured(r: dict, label: str, name: str, labels: list):
             f'<div class="n">of runs over 40+ years of weather and prices</div></div>'
             '</div>')
 
+        if label == "Best fit":
+            line = _climate_line(r, name)
+            if line:
+                st.html(f'<p class="fs-climate">{html.escape(line)}</p>')
+
+        st.html(_about_rotation(r, name))
+
         if not is_current:
             st.markdown("**Compared with what you grow now**")
             st.html(_priority_bars(r["point_scores"]["slider_values"].loc[name]))
-
-        checks = list(r["flags"].get(name, []))
-        checks += [f["sentence"] for f in r.get("risk_flags", {}).get(name, []) if f.get("level") in ("warn", "watch")]
-        if checks:
-            st.markdown("**Things to check**")
-            st.html('<ul class="fs-list">' + "".join(f"<li>{html.escape(c)}</li>" for c in checks[:4]) + "</ul>")
 
 
 # --- 2. calendar ---------------------------------------------------------------------------------------
@@ -152,7 +193,84 @@ def _replay(r: dict, label: str, name: str, labels: list):
                 'weather. Amber = worse than a typical year.</p>')
 
 
-# --- 4. data sources --------------------------------------------------------------------------------------
+# --- 4. can you trust it -----------------------------------------------------------------------------------
+def _strength(r: float) -> str:
+    return "Strong" if r >= 0.7 else "Good" if r >= 0.5 else "Fair" if r >= 0.3 else "Weak"
+
+
+def _trust_chart(series: pd.DataFrame, obs_label: str):
+    import altair as alt
+    df = series.rename(columns={"m": "Our water model", "o": obs_label}).reset_index()
+    df = df.rename(columns={df.columns[0]: "month"})
+    df["year"] = df["month"].dt.year
+    long = df.melt(["month", "year"], var_name="Series", value_name="Departure")
+    domain = ["Our water model", obs_label]
+    legend = alt.Legend(title=None, orient="bottom", symbolType="stroke", symbolStrokeWidth=2.5, symbolSize=300)
+    base = alt.Chart(long).encode(
+        x=alt.X("month:T", title=None, axis=alt.Axis(format="%Y", tickCount="year", grid=False)),
+        y=alt.Y("Departure:Q", title="Wetter than normal  ↑    ↓  drier",
+                axis=alt.Axis(tickCount=5, labels=False, ticks=False)),
+        color=alt.Color("Series:N", scale=alt.Scale(domain=domain, range=["#2e7d3c", "#2b6cb0"]), legend=legend),
+        strokeDash=alt.StrokeDash("Series:N", scale=alt.Scale(domain=domain, range=[[1, 0], [5, 3]]), legend=legend),
+        detail="year:N",
+        tooltip=[alt.Tooltip("month:T", title="Month", format="%B %Y"), alt.Tooltip("Series:N"),
+                 alt.Tooltip("Departure:Q", title="Departure from normal", format="+.2f")])
+    lines = base.mark_line(strokeWidth=2, point=alt.OverlayMarkDef(size=18, filled=True))
+    zero = alt.Chart(pd.DataFrame({"y": [0]})).mark_rule(color="#c9bb9d").encode(y="y:Q")
+    st.altair_chart(ui.chart_config((zero + lines).properties(height=260)), width="stretch")
+
+
+def _trust(r: dict):
+    ui.section_heading("Can you trust these results?", number=4,
+                       sub="We checked our model against NASA satellites and ground sensors.")
+    v = r.get("validation") or {}
+    with ui.section("trust", sand=False):
+        comps = v.get("comparisons") or {}
+        if not v.get("available") or not comps:
+            st.info("The checks against satellite and ground data could not run for this field.")
+            return
+        cards = []
+        smap = comps.get("sm_surface_l3") or comps.get("sm_rootzone_l4")
+        power = comps.get("power_gwetroot")
+        probe = comps.get("isusm_60cm") or comps.get("isusm_30cm")
+
+        def card(title, comp, note):
+            rr = comp["monthly_anomaly"]["r"]
+            if rr is None or pd.isna(rr):
+                return
+            cards.append(f'<div class="fs-stat"><div class="l">{html.escape(title)}</div>'
+                         f'<div class="v">{rr:.2f} <span style="font-size:.95rem;font-weight:600">'
+                         f'{_strength(rr)}</span></div><div class="n">{html.escape(note)}</div></div>')
+        if smap:
+            sp = v.get("smap_point") or {}
+            where = (f"9 km satellite cell, {sp['distance_km']:.0f} km away" if sp.get("distance_km")
+                     else "9 km satellite cell over this area")
+            card("Soil moisture vs NASA SMAP satellite", smap, f"{where}, 2015-2025")
+        if power:
+            card("Soil wetness vs NASA POWER", power, "NASA's own root-zone model, 2013-2025")
+        if probe:
+            card("Soil moisture vs Iowa State probe", probe, "Buried sensor near Ames, 2014-2025")
+        w = v.get("weather") or {}
+        weather_card = bool(w.get("tmax")) and len(cards) < 3
+        if weather_card:
+            cards.append(f'<div class="fs-stat"><div class="l">NASA weather vs Ames station</div>'
+                         f'<div class="v">{w["tmax"]["r"]:.2f} <span style="font-size:.95rem;font-weight:600">'
+                         f'{_strength(w["tmax"]["r"])}</span></div><div class="n">Daily highs; monthly rain '
+                         f'{w["rain_monthly"]["r"]:.2f}</div></div>')
+        st.html(f'<div class="fs-stats">{"".join(cards[:3])}</div>'
+                '<p class="fs-source" style="margin-top:.4rem">Match = how closely the ups and downs agree, month '
+                'by month in April-October (1.00 = perfect, 0 = none).</p>')
+        chart = smap or power
+        if chart is not None and isinstance(chart.get("monthly_series"), pd.DataFrame) and len(chart["monthly_series"]):
+            label = "NASA SMAP satellite" if chart is smap else "NASA POWER"
+            st.markdown(f"**Wetter or drier than normal: our model vs {label}**")
+            _trust_chart(chart["monthly_series"], label)
+        if w.get("tmax") and not weather_card:
+            st.html(f'<p class="fs-source">NASA POWER weather against the Ames ground station: daily highs '
+                    f'match {w["tmax"]["r"]:.2f}, monthly rain {w["rain_monthly"]["r"]:.2f}.</p>')
+
+
+# --- 5. data sources --------------------------------------------------------------------------------------
 def _data_sources(r: dict):
     notes = " ".join((r.get("validation") or {}).get("notes", []))
     smap = "Coming soon" if "SMAP not available" in notes else "Checks the water model"
@@ -166,7 +284,7 @@ def _data_sources(r: dict):
         ("", "USDA soil survey and crop maps", "Your field's soils, drainage, slope and past crops."),
         ("", "Iowa State University and USDA", "Crop budgets, yields, prices and rotation research."),
     ]
-    ui.section_heading("Where the data comes from", number=4, sub="NASA Earth observations, with USDA and Iowa State.")
+    ui.section_heading("Where the data comes from", number=5, sub="NASA Earth observations, with USDA and Iowa State.")
     with ui.section("data", sand=False):
         st.html('<div class="fs-data">' + "".join(
                     f'<div class="{cls}"><b>{html.escape(t)}</b><span>{html.escape(d)}</span></div>'
@@ -199,6 +317,24 @@ def _details(r: dict, options: dict):
         st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
 
 
+def _report_button(r: dict, options: dict):
+    """One-page PDF for the farmer to keep or take to an agronomist (built once per analysis)."""
+    import report
+    ss = st.session_state
+    lat, lon = ss.lat, ss.lon
+    if ss.get("_report_for") != id(r):
+        try:
+            ss._report_pdf = report.build_pdf(r, options, lat, lon)
+        except Exception as err:                                   # noqa: BLE001 - the page still works
+            ss._report_pdf = None
+            ss._report_error = str(err)
+        ss._report_for = id(r)
+    if ss.get("_report_pdf"):
+        st.download_button("Download report (PDF)", ss._report_pdf, file_name="orbital-acre-field-report.pdf",
+                           mime="application/pdf", icon=":material/download:", type="tertiary",
+                           on_click="ignore")
+
+
 def render():
     r = st.session_state.get("result")
     if r is None:
@@ -215,13 +351,15 @@ def render():
     with st.container(horizontal=True, gap="small"):
         st.button("Edit answers", icon=":material/arrow_back:", type="tertiary", on_click=ui.go("questions"))
         st.button("Change field", icon=":material/map:", type="tertiary", on_click=ui.go("field"))
+        _report_button(r, options)
     lat, lon = st.session_state.lat, st.session_state.lon
     ui.page_header("Step 3 of 3", "Your results",
                    f"Rotations for your field ({services.location_text(lat, lon)}), compared with what you "
-                   "grow now. Work through the four sections in order.")
+                   "grow now. Work through the sections in order.")
 
     _featured(r, label, name, labels)
     _calendar(r, label, name, labels)
     _replay(r, label, name, labels)
+    _trust(r)
     _data_sources(r)
     _details(r, options)
