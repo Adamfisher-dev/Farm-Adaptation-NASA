@@ -227,6 +227,7 @@ __marimo__/
 *.nc
 *.tif
 !data/raw/cdl/*.tif
+!sample_data/*.tif
 .DS_Store
 .vscode/
 node_modules/

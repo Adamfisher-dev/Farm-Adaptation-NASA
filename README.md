@@ -19,7 +19,7 @@ the evidence behind it, its likely benefits, the information gaps and the risks 
 ## What it does
 
 1. **Pick a field** in Story County, Iowa (the corn-soybean belt) on the map.
-2. **Field details are filled in from data** and the farmer corrects them: soil (USDA SSURGO, live),
+2. **Field details are filled in from data** and the farmer corrects them: soil (USDA SSURGO),
    slope (SSURGO, cross-checked with NASA SRTM), crops grown since 2008 (USDA Cropland Data Layer) and a
    guessed current rotation ("We see corn, soybean, corn, soybean... is that right?").
 3. **The farmer says what is possible** (livestock or hay buyer, hay equipment, grain buyer, can seed a
@@ -40,7 +40,7 @@ the evidence behind it, its likely benefits, the information gaps and the risks 
 
 ```
 Field polygon ─┬─ NASA POWER weather 1984-2025 ── FAO-56 reference evapotranspiration (ET0)
-               ├─ USDA SSURGO soil (live) ─────── water capacity, drainage, water table
+               ├─ USDA SSURGO soil survey ─────── water capacity, drainage, water table
                ├─ SSURGO slope + NASA SRTM ────── erosion exposure
                └─ USDA CDL crop history ────────── current rotation
                                      │
@@ -79,7 +79,7 @@ Full technical detail: [docs/model.md](docs/model.md).
 | **NASA SRTM** GL1 v003 (30 m) | elevation | slope cross-check |
 | **NASA SMAP** SPL3SMP_E v006 / SPL4SMGP v008 (via AppEEARS) | surface and root-zone soil moisture at the example fields | validation of the water model |
 | **NASA HLS** v2.0 HLSL30 + HLSS30 (via AppEEARS) | field NDVI | validation of the crop calendar |
-| USDA NRCS **SSURGO** (Soil Data Access, live) | water capacity, drainage class, hydrologic group, slope, Ksat, saturation, spring water table | soil-water bucket size, tile-drainage guess, untiled drainage, erosion |
+| USDA NRCS **SSURGO** (Soil Data Access; Story County survey IA169 saved locally, map units on a 30 m grid) | water capacity, drainage class, hydrologic group, slope, Ksat, saturation, spring water table | soil-water bucket size, tile-drainage guess, untiled drainage, erosion |
 | USDA NASS **Cropland Data Layer** 2008-2025 (CropScape; 2018 via the Microsoft Planetary Computer copy) | crop grown each year | current rotation, model runs with real crops for validation |
 | Iowa Environmental Mesonet: ISU Soil Moisture Network (AEEI4), NWS station Ames 5 SE (IA0203) | soil moisture at 30/60 cm, daily temperature and rain | validation; calibration of rain-day counts |
 | Iowa State University Extension FM 1712 (2026 costs), FM 1851 (2026 cash rent), A1-12 (county yields), A3-10 (custom rates); USDA NASS crop values; USDA WASDE; IDALS cover-crop cost-share; USDA AMS hay auction reports | yields, prices, costs, rent, cost-share, straw | income |
@@ -99,14 +99,20 @@ Checked against independent measurements (`model/validation.py`):
 | NASA POWER vs automated ISU station (2013-2025) | max temperature error 1.8 C, r = 0.99 |
 | Modelled soil wetness vs ISU soil probe at 60 cm (~10-26 km away) | day-to-day departures from normal r = 0.52-0.54; monthly 0.64-0.68 |
 | Modelled soil wetness vs NASA POWER root-zone wetness | r = 0.62-0.65 |
-| SMAP and HLS comparisons | code ready; run once the AppEEARS extractions are in `sample_data/` |
+| Modelled soil wetness vs **NASA SMAP** L3 surface soil moisture (9 km, recommended-quality retrievals, 2015-2025) | day-to-day departures from normal **r = 0.59-0.64; monthly 0.74-0.82** (1,323 days) |
+| HLS crop-calendar comparison | code ready; runs once the AppEEARS extraction is in `sample_data/` |
 
-The model gets wet and dry periods right; it is not a measurement of one field. Station rain readings are
+The model gets wet and dry periods right; it is not a measurement of one field. Two of the three SMAP
+9 km cells around the example fields (the ones covering Ames and the Skunk River valley) never have
+recommended-quality retrievals - urban area and water spoil the signal - so the comparison uses the
+nearest cell with good data, within 15 km. Station rain readings are
 aligned to calendar days (morning observer), and NASA POWER's rain-day count is calibrated to the gauge
 (POWER has ~35 % more light-rain days than a rain gauge).
 
 ## Limitations and information gaps
 
+- **Soil map resolution:** the county soil survey is used on a 30 m grid (survey lines simplified by ~5 m);
+  field results match the live USDA query within 0.5 mm/m water capacity and give the same drainage class.
 - **Regional weather:** NASA POWER is a ~50 km average, the same for every field nearby. Fields differ in
   the results through soil, slope and crop history, not weather.
 - **Water model simplifications:** snow is treated as rain; crop planting and harvest dates are fixed
@@ -137,8 +143,9 @@ python -m pip install -r requirements.txt
 python -m streamlit run app/app.py
 ```
 
-The demo runs from committed data (NASA POWER in `sample_data/`, SRTM/CDL/ground data in `data/raw/`);
-only the soil survey is queried live, with a fallback to a typical soil if it cannot be reached.
+The app runs from committed data - NASA POWER, SMAP and the Story County soil survey in `sample_data/`,
+SRTM, CDL and ground-station data in `data/raw/` - so it needs no live service for fields in Story County.
+(Outside the county it would query USDA Soil Data Access live, falling back to a typical soil after 8 s.)
 
 ```
 python -m pytest            # 65 tests (offline), incl. the FAO-56 example and the playbook sanity checks
@@ -147,8 +154,8 @@ python scripts/check_water_balance.py
 ```
 
 Refreshing the data: `scripts/prefetch_power.py` (NASA POWER) and `scripts/prefetch_field_data.py`
-(`ssurgo`, `srtm`, `cdl`, `ground`, `nasa` = SMAP + HLS via AppEEARS; SRTM and AppEEARS need a NASA
-Earthdata login).
+(`soilmap` = county soil survey + example-field soils, `ssurgo`, `srtm`, `cdl`, `ground`, `nasa` = SMAP +
+HLS via AppEEARS; SRTM and AppEEARS need a NASA Earthdata login).
 
 ## Repository layout
 
