@@ -179,6 +179,11 @@ the team"). The team chose the region, the approach (physics-based simulation wi
 a single index or a predictive model), the data sources and every agronomic choice, reviewed the code,
 and checked results against data and against the FAO-56 example. No AI-generated images are used.
 
+## Licence
+
+Code: [MIT](LICENSE). Data belong to their providers and are used under their terms (NASA and US
+government data are public domain or free to use with credit); see the sources above.
+
 ## References
 
 - Allen, R.G., Pereira, L.S., Raes, D., Smith, M. (1998). *Crop evapotranspiration*. FAO Irrigation and Drainage Paper 56.
