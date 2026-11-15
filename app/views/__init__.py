@@ -1,1 +1,1 @@
-"""Screens of the Field Shift app (field, questionnaire, results, about)."""
+"""Screens of the Orbital Acre app (field, questionnaire, results, about)."""

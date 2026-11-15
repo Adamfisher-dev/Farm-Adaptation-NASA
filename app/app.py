@@ -1,4 +1,4 @@
-"""Field Shift - Streamlit app. Run from the repo root:  python -m streamlit run app/app.py
+"""Orbital Acre - Streamlit app. Run from the repo root:  python -m streamlit run app/app.py
 
 One page, three steps plus About, chosen by st.session_state.step:
     field       Home: choose a field in Story County on the map      (app/views/field.py)

@@ -72,12 +72,12 @@ PAGE_CSS = f"""
 header[data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stSidebar"],
 [data-testid="stSidebarCollapsedControl"], [data-testid="stDecoration"] {{ display: none !important; }}
 [data-testid="stMainBlockContainer"], .block-container {{
-    max-width: 1100px; padding-top: 4.6rem !important; padding-bottom: 4rem;
+    max-width: 1100px; padding-top: 6.8rem !important; padding-bottom: 4rem;
     padding-left: 1.25rem; padding-right: 1.25rem;
 }}
 @media (max-width: 640px) {{
     [data-testid="stMainBlockContainer"], .block-container {{
-        padding-top: 4.2rem !important; padding-left: 0.8rem; padding-right: 0.8rem;
+        padding-top: 5.2rem !important; padding-left: 0.8rem; padding-right: 0.8rem;
     }}
 }}
 h1, h2, h3 {{ letter-spacing: -0.01em; }}

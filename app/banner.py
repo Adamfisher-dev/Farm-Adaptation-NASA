@@ -18,7 +18,7 @@ import ui
 ASSETS = Path(__file__).resolve().parent / "assets"
 LOGO = "logo.png"                                   # your logo file in app/assets/
 LOGO_PLACEHOLDER = "logo_placeholder.svg"
-NAME = "Field Shift"
+NAME = "Orbital Acre"
 TAGLINE = "Adapting Iowa crop rotations with NASA data"
 
 BANNER_CSS = f"""
@@ -32,9 +32,14 @@ BANNER_CSS = f"""
 }}
 body.fs-banner-hidden .st-key-banner {{ transform: translateY(-110%); }}
 .st-key-banner p, .st-key-banner span {{ color: #ffffff !important; }}
-.st-key-banner img {{ display: block; }}
-.fs-name {{ font-size: 1.45rem; font-weight: 700; line-height: 1.1; margin: 0; color: #fff; white-space: nowrap; }}
-.fs-tagline {{ font-size: 0.85rem; opacity: 0.85; margin: 0; color: #fff; white-space: nowrap; }}
+/* logo: black line art, so it sits on a white rounded tile to stand out on the green */
+.st-key-banner [data-testid="stImage"] img {{
+    display: block; width: 72px !important; height: 72px !important; object-fit: contain;
+    background: #ffffff; border-radius: 14px; padding: 3px; box-shadow: 0 2px 8px rgba(0,0,0,0.28);
+}}
+.fs-name {{ font-size: 1.8rem; font-weight: 800; letter-spacing: 0.01em; line-height: 1.05; margin: 0;
+           color: #fff; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,0.25); }}
+.fs-tagline {{ font-size: 0.88rem; opacity: 0.9; margin: 0.15rem 0 0; color: #fff; white-space: nowrap; }}
 .st-key-banner button {{
     background: transparent !important; border: 1px solid rgba(255,255,255,0.0) !important;
     color: #ffffff !important; font-weight: 600; padding: 0.3rem 0.8rem !important; border-radius: 8px !important;
@@ -44,9 +49,16 @@ body.fs-banner-hidden .st-key-banner {{ transform: translateY(-110%); }}
 .st-key-nav_home_on button, .st-key-nav_about_on button {{ border-color: rgba(255,255,255,0.65) !important; }}
 @media (max-width: 640px) {{
     .st-key-banner {{ padding: 0.45rem 0.8rem; }}
-    .fs-name {{ font-size: 1.15rem; }}
+    .st-key-banner [data-testid="stImage"] img {{ width: 48px !important; height: 48px !important;
+                                                  border-radius: 11px; }}
+    .fs-name {{ font-size: 1.3rem; }}
     .fs-tagline {{ display: none; }}
     .st-key-banner button {{ padding: 0.25rem 0.55rem !important; }}
+}}
+@media (max-width: 480px) {{        /* phones: icon-only menu so the banner stays on one line */
+    .st-key-banner button p {{ position: absolute !important; width: 1px; height: 1px; overflow: hidden;
+                              clip: rect(0 0 0 0); white-space: nowrap; }}   /* still read by screen readers */
+    .st-key-banner button {{ padding: 0.35rem 0.5rem !important; min-width: 2.4rem; }}
 }}
 </style>
 """
@@ -82,14 +94,14 @@ def render() -> None:
     st.html(BANNER_CSS)
     step = st.session_state.get("step", "field")
     with st.container(key="banner", horizontal=True, vertical_alignment="center",
-                      horizontal_alignment="distribute"):
+                      horizontal_alignment="distribute", wrap=False):
         with st.container(horizontal=True, vertical_alignment="center", gap="small", width="content"):
-            st.image(str(logo_path()), width=44)
+            st.image(str(logo_path()), width=72)
             st.html(f'<div><p class="fs-name">{NAME}</p>'
                     + (f'<p class="fs-tagline">{TAGLINE}</p>' if TAGLINE else "") + "</div>")
         with st.container(horizontal=True, vertical_alignment="center", gap="small", width="content"):
-            st.button("Home", icon=":material/home:", on_click=ui.go("field"),
+            st.button("Home", icon=":material/home:", on_click=ui.go("field"), help="Home: choose your field",
                       key="nav_home_on" if step in ("field", "questions", "results") else "nav_home")
-            st.button("About", icon=":material/info:", on_click=ui.go("about"),
+            st.button("About", icon=":material/info:", on_click=ui.go("about"), help="About Orbital Acre",
                       key="nav_about_on" if step == "about" else "nav_about")
     st.html(SCROLL_JS, unsafe_allow_javascript=True)

@@ -4,10 +4,10 @@ import streamlit as st
 
 
 def render():
-    st.header("About Field Shift")
+    st.header("About Orbital Acre")
 
     st.subheader("The challenge")
-    st.write("NASA Space Apps Challenge 2026 - *Field Shift: Adapting Farms with NASA Data*. "
+    st.write("Orbital Acre is our answer to the NASA Space Apps Challenge 2026 - *Field Shift: Adapting Farms with NASA Data*. "
              "Our tool helps a farmer explore crop-rotation options that build soil health and cope with "
              "a changing climate, for one field at a time, in Iowa.")
 

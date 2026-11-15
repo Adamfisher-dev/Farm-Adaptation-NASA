@@ -24,7 +24,7 @@ def _pick_example():
 def render():
     lat, lon = st.session_state.lat, st.session_state.lon
     st.header("Choose your field")
-    st.html('<p class="fs-lead">Click your field on the map. Field Shift covers Story County, Iowa '
+    st.html('<p class="fs-lead">Click your field on the map. Orbital Acre covers Story County, Iowa '
             '(outlined in white); the yellow square is the area analysed.</p>')
 
     m = folium.Map(location=[lat, lon], zoom_start=13, min_zoom=10, max_bounds=True,

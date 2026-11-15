@@ -1,4 +1,4 @@
-# Streamlit settings for Field Shift (read when running `streamlit run app/app.py` from the repo root).
+# Streamlit settings for Orbital Acre (read when running `streamlit run app/app.py` from the repo root).
 
 [theme]
 primaryColor = "#2f6b3a"          # the banner green, used for buttons, sliders and pills

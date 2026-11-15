@@ -1,5 +1,5 @@
 # Farm-Adaptation-NASA
-# Field Shift
+# Orbital Acre
 
 NASA Space Apps Challenge 2026: Field Shift: Adapting Farms with NASA Data.
 
