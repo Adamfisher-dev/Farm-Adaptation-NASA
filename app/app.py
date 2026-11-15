@@ -22,7 +22,7 @@ import ui  # noqa: E402
 from fieldshift import config  # noqa: E402
 from views import about, field, questionnaire, results  # noqa: E402
 
-st.set_page_config(page_title=banner.NAME, page_icon=str(banner.logo_path()), layout="wide",
+st.set_page_config(page_title=banner.NAME, page_icon=str(banner.icon_path()), layout="wide",
                    initial_sidebar_state="collapsed")
 
 ss = st.session_state
