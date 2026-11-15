@@ -196,8 +196,8 @@ def run_basic(lat, lon, rotations=None, awc_mm_per_m=None, tile_drained=None, al
         warnings.simplefilter("ignore")
         for name, plan in rotations.items():
             t = simulate_rotation(plan, model_df["PRECTOTCORR"], et0, awc, tiled, start, end,
-                                  hydrologic_group=hsg, rotation_id=name, keep_daily=True, **wbp)
-            dailies[name] = t.attrs.pop("daily", None)
+                                  hydrologic_group=hsg, rotation_id=name, daily_out=dailies.setdefault(name, {}),
+                                  **wbp)
             tables[name] = t
             rows.append({"rotation": name, **t[list(WATER_COLUMNS)].mean().to_dict()})
             lib = _LIBRARY.get(name)

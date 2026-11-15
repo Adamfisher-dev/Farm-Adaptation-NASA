@@ -345,29 +345,31 @@ def simulate_rotation(
     hydrologic_group: str | None = None,
     crops: pd.DataFrame | None = None,
     rotation_id: str | None = None,
-    keep_daily: bool = False,
+    daily_out: dict | None = None,
     **wb_kwargs,
 ) -> pd.DataFrame:
     """Run every phase of a rotation and stack the yearly summaries.
+
+    daily_out: pass an empty dict to also get the daily runs back, {phase: DataFrame with stressed,
+    sensitive, waterlogged} (used by the field calendar and risk flags). Kept out of the table's
+    .attrs on purpose: pandas compares attrs when grouping/concatenating, which fails for DataFrames.
 
     Returns the rotation x year table for this rotation: one row per (phase, year),
     columns from yearly_summary plus 'phase'. Phases are pooled downstream
     (bootstrap.py), so every weather year meets every crop (playbook 6.2).
     """
-    tables, dailies = [], {}
+    tables = []
     for phase, ct in crops_mod.all_phases(rotation, start_year, end_year, crops=crops).items():
         daily = run_water_balance(precip_mm, et0_mm, ct, awc_mm_per_m, tile_drained,
                                   hydrologic_group, **wb_kwargs)
-        if keep_daily:      # small copy for the field calendar (stress and waterlogging by half-month)
-            dailies[phase] = daily[["stressed", "sensitive", "waterlogged"]].copy()
+        if daily_out is not None:     # small copy for the field calendar and risk flags
+            daily_out[phase] = daily[["stressed", "sensitive", "waterlogged"]].copy()
         y = yearly_summary(daily)
         y.insert(0, "phase", phase)
         tables.append(y.reset_index())
     table = pd.concat(tables, ignore_index=True)
     label = rotation_id or " / ".join("+".join(y) if isinstance(y, (list, tuple)) else y for y in rotation)
     table.insert(0, "rotation_id", label)
-    if keep_daily:
-        table.attrs["daily"] = dailies
     return table
 
 

@@ -223,7 +223,7 @@ def risk_flags(plan, weather: pd.DataFrame, dailies: dict | None = None, crops: 
                start_year: int = config.WATER_START_YEAR, end_year: int = config.WATER_END_YEAR) -> list:
     """All risk flags for one rotation on one field, most serious first.
     weather: daily POWER (the weather the model used); dailies: {phase: daily water-model output with
-    'waterlogged'} from simulate_rotation(keep_daily=True), for waterlogging at planting."""
+    'waterlogged'} from simulate_rotation(daily_out={}), for waterlogging at planting."""
     crops = crops_mod.default_crop_table() if crops is None else crops
     s = load_settings()
     cal = calendar_mod.load_settings()
@@ -256,8 +256,9 @@ if __name__ == "__main__":
                               ("C-S, NOT tiled", [["corn"], ["soybean"]], False),
                               ("C-S-oats/clover + rye before soy", [["corn", "cereal_rye"], ["soybean"], ["oats+red_clover"]], True),
                               ("C-S-wheat + rye", [["corn", "cereal_rye"], ["soybean"], ["winter_wheat", "cereal_rye"]], True)]:
-        t = simulate_rotation(plan, weather["PRECTOTCORR"], et0, 183.0, tiled, 1984, 2025, keep_daily=True)
-        flags = risk_flags(plan, weather, t.attrs["daily"])
+        daily = {}
+        simulate_rotation(plan, weather["PRECTOTCORR"], et0, 183.0, tiled, 1984, 2025, daily_out=daily)
+        flags = risk_flags(plan, weather, daily)
         results[name] = {f["label"]: f for f in flags}
         print(f"\n{name}")
         for f in flags:
