@@ -45,6 +45,11 @@ class SoilProfile:
     likely_tiled: bool                     # hint only - farmer confirms
     source: str = "USDA NRCS SSURGO, survey area IA169 (muaggatt table)"
     slope_pct: float | None = None         # area-weighted representative slope of the map units
+    # hydraulics for the water model on UNTILED fields (SSURGO chorizon + muaggatt; None if unavailable)
+    ksat_mm_day: float | None = None       # saturated conductivity of the most restrictive layer in 0-150 cm
+    drainable_mm: float | None = None      # water held between field capacity and saturation, top 1 m
+    spring_wt_shallow_share: float | None = None   # share of the field with an Apr-Jun water table < 100 cm
+    hydraulics_source: str | None = None
     warnings: list = field(default_factory=list)
 
     def to_dict(self):
@@ -108,7 +113,10 @@ def field_soil_profile(field_geom, ssurgo=None) -> SoilProfile:
         raise ValueError("Field is outside the downloaded SSURGO survey area.")
     pieces = gpd.overlay(ssurgo.iloc[idx], fld, how="intersection")
     pieces["frac"] = pieces.area / field_area
-    return summarise_pieces(pd.DataFrame(pieces.drop(columns="geometry")))
+    prof = summarise_pieces(pd.DataFrame(pieces.drop(columns="geometry")))
+    key = "MUKEY" if "MUKEY" in pieces.columns else "mukey"
+    _add_hydraulics(prof, pieces.groupby(key)["frac"].sum())
+    return prof
 
 
 # --- Live: USDA Soil Data Access ------------------------------------------------
@@ -157,7 +165,83 @@ def field_soil_profile_sda(field_geom, mapunits: pd.DataFrame | None = None) -> 
     df["frac"] = df["area_m2"] / (_area_ha(field_geom) * 10_000)
     prof = summarise_pieces(df)
     prof.source = "USDA NRCS SSURGO via Soil Data Access (live query, muaggatt table)"
+    if mapunits is None:                # live query: also fetch drainage properties (skipped for given rows/tests)
+        _add_hydraulics(prof, df.groupby("mukey")["frac"].sum())
     return prof
+
+
+# --- Hydraulic properties (for untiled fields in the water model) -------------------------
+SHALLOW_WATER_TABLE_CM = 100      # the water model's profile is the top 1 m
+KSAT_DEPTH_CM = 150               # restrictive layer searched in the top 1.5 m
+UM_S_TO_MM_DAY = 86.4             # 1 micrometre per second = 86.4 mm per day
+
+SDA_HYDRAULICS_QUERY = """SELECT ma.mukey, ma.wtdepaprjunmin, c.cokey, c.comppct_r,
+       h.hzdept_r, h.hzdepb_r, h.ksat_r, h.wsatiated_r, h.wthirdbar_r
+FROM muaggatt ma JOIN component c ON c.mukey = ma.mukey JOIN chorizon h ON h.cokey = c.cokey
+WHERE ma.mukey IN ({keys}) AND c.majcompflag = 'Yes'"""
+
+
+def sda_hydraulics(mukey_fracs: pd.Series, timeout=60) -> dict:
+    """Field hydraulics from SSURGO, weighted by map-unit area and major-component percentage:
+        ksat_mm_day   most restrictive (lowest) Ksat in 0-150 cm, geometric mean across the field
+        drainable_mm  sum over 0-100 cm of (saturated - 1/3-bar water content) x thickness
+        spring_wt_shallow_share  share of the field whose April-June water table is < 100 cm deep
+    """
+    import numpy as np
+    import requests
+    fr = mukey_fracs[mukey_fracs > 0]
+    keys = ",".join(f"'{k}'" for k in fr.index.astype(str))
+    r = requests.post(SDA_URL, json={"query": SDA_HYDRAULICS_QUERY.format(keys=keys),
+                                     "format": "JSON+COLUMNNAME"}, timeout=timeout)
+    if r.status_code != 200:
+        raise ValueError(f"Soil Data Access error {r.status_code}")
+    table = (r.json() or {}).get("Table") or []
+    if len(table) < 2:
+        raise ValueError("No horizon data for these map units")
+    h = pd.DataFrame(table[1:], columns=table[0])
+    for c in ("wtdepaprjunmin", "comppct_r", "hzdept_r", "hzdepb_r", "ksat_r", "wsatiated_r", "wthirdbar_r"):
+        h[c] = pd.to_numeric(h[c], errors="coerce")
+    comps = []
+    for (mukey, cokey), g in h.groupby(["mukey", "cokey"]):
+        top, bot = g["hzdept_r"], g["hzdepb_r"]
+        ks = g.loc[top < KSAT_DEPTH_CM, "ksat_r"].dropna()
+        thick = (np.minimum(bot, SHALLOW_WATER_TABLE_CM) - top).clip(lower=0)
+        drain = ((g["wsatiated_r"] - g["wthirdbar_r"]).clip(lower=0) / 100.0 * thick * 10.0)   # cm -> mm
+        wt = g["wtdepaprjunmin"].iloc[0]
+        comps.append({"mukey": str(mukey), "w": g["comppct_r"].iloc[0],
+                      "ksat": ks.min() * UM_S_TO_MM_DAY if len(ks) else np.nan,
+                      "drainable": drain.sum() if drain.notna().any() else np.nan,
+                      "shallow": float(pd.notna(wt) and wt < SHALLOW_WATER_TABLE_CM)})
+    c = pd.DataFrame(comps)
+    c["w"] = c["w"] * c["mukey"].map(lambda k: float(fr.get(k, fr.get(int(k), 0)) if k.isdigit() else fr.get(k, 0)))
+    c = c[c["w"] > 0]
+    if c.empty:
+        raise ValueError("No weighted components")
+    def wmean(col, geo=False):
+        d = c.dropna(subset=[col])
+        if d.empty:
+            return None
+        v = np.log(d[col].clip(lower=1e-6)) if geo else d[col]
+        m = float((v * d["w"]).sum() / d["w"].sum())
+        return float(np.exp(m)) if geo else m
+    return {"ksat_mm_day": round(wmean("ksat", geo=True), 1) if wmean("ksat", geo=True) else None,
+            "drainable_mm": round(wmean("drainable"), 1) if wmean("drainable") is not None else None,
+            "spring_wt_shallow_share": round(wmean("shallow"), 3) if wmean("shallow") is not None else None}
+
+
+def _add_hydraulics(prof: SoilProfile, mukey_fracs: pd.Series) -> None:
+    """Attach SSURGO hydraulics to a profile; leaves them None (placeholders used) if the query fails."""
+    try:
+        hyd = sda_hydraulics(mukey_fracs)
+    except Exception as err:                       # offline / service down / missing data
+        prof.warnings.append(f"Soil drainage properties not available ({type(err).__name__}); "
+                             "the water model uses default drainage for untiled fields.")
+        return
+    prof.ksat_mm_day = hyd["ksat_mm_day"]
+    prof.drainable_mm = hyd["drainable_mm"]
+    prof.spring_wt_shallow_share = hyd["spring_wt_shallow_share"]
+    prof.hydraulics_source = ("USDA NRCS SSURGO via Soil Data Access: chorizon ksat_r, wsatiated_r, "
+                              "wthirdbar_r; muaggatt wtdepaprjunmin")
 
 
 # --- Area-weighted summary (shared) -----------------------------------------------

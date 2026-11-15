@@ -183,6 +183,11 @@ def _md(year: int, md: str) -> pd.Timestamp:
     return pd.Timestamp(f"{year}-{md}")
 
 
+def _mdi(md) -> int:
+    """'MM-DD' -> MMDD as an integer (e.g. '07-10' -> 710), for fast date-window comparisons."""
+    return int(md[:2]) * 100 + int(md[3:5])
+
+
 def _parse_year_plan(plan, crops: pd.DataFrame):
     """["corn"] / ["corn", "cereal_rye"] / ["oats+red_clover"] -> (cash, follow_crop, underseeded)."""
     if isinstance(plan, str):
@@ -296,7 +301,7 @@ def daily_crop_table(rotation, start_year: int, end_year: int, phase: int = 0,
     sensitive = np.zeros(nd, dtype=bool)
     dss = np.full(nd, -1, dtype=int)
     rot_year = np.zeros(nd, dtype=int)
-    md = dates.strftime("%m-%d").to_numpy()
+    md = (dates.month * 100 + dates.day).to_numpy()          # MMDD integers (fast; same order as 'MM-DD')
     n = len(rotation)
     rot_year[:] = ((dates.year - start_year + phase) % n + 1).to_numpy()  # default: calendar year
 
@@ -312,7 +317,7 @@ def daily_crop_table(rotation, start_year: int, end_year: int, phase: int = 0,
         stages = np.array([r["l_ini"], r["l_dev"], r["l_mid"], r["l_late"]], dtype=float)
 
         if seg.kind == "perennial" and seg.role == "cash":
-            growing = (md[mask] >= r["greenup_md"]) & (md[mask] <= r["dormancy_md"])
+            growing = (md[mask] >= _mdi(r["greenup_md"])) & (md[mask] <= _mdi(r["dormancy_md"]))
             kc[mask] = np.where(growing, r["kc_mid"], r["kc_dormant"])
             zr[mask] = r["root_max_m"]
         else:
@@ -323,7 +328,7 @@ def daily_crop_table(rotation, start_year: int, end_year: int, phase: int = 0,
             k = kc_curve(d, *stages, r["kc_ini"], r["kc_mid"], r["kc_end"])
             if isinstance(r["greenup_md"], str) and isinstance(r["dormancy_md"], str):
                 # crops with a dormant season (clover, establishing alfalfa): cap Kc in winter
-                dormant = ~((md[mask] >= r["greenup_md"]) & (md[mask] <= r["dormancy_md"]))
+                dormant = ~((md[mask] >= _mdi(r["greenup_md"])) & (md[mask] <= _mdi(r["dormancy_md"])))
                 k = np.where(dormant, np.minimum(k, r["kc_dormant"]), k)
             kc[mask] = k
             zr[mask] = root_depth_curve(d, stages[0] + stages[1], r["root_max_m"])
@@ -336,7 +341,7 @@ def daily_crop_table(rotation, start_year: int, end_year: int, phase: int = 0,
             rot_year[mask] = seg.rotation_year
         s_start, s_end = r["sensitive_start_md"], r["sensitive_end_md"]
         if seg.role == "cash" and isinstance(s_start, str) and isinstance(s_end, str):
-            sensitive[mask] = (md[mask] >= s_start) & (md[mask] <= s_end)
+            sensitive[mask] = (md[mask] >= _mdi(s_start)) & (md[mask] <= _mdi(s_end))
 
     return pd.DataFrame({
         "crop": crop, "role": role, "kc": kc,

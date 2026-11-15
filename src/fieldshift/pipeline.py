@@ -140,7 +140,7 @@ def field_profile(lat, lon, geojson=None, overrides=None):
 # --- Run -------------------------------------------------------------------------------------------
 def run_basic(lat, lon, rotations=None, awc_mm_per_m=None, tile_drained=None, allow_download=True,
               geojson=None, overrides=None, use_runoff=False, income=None, profile=None,
-              detrend_temperature=False, income_ranges=None):
+              detrend_temperature=False, income_ranges=None, delta_temp_c=0.0, summer_rain_pct=0.0):
     """Everything the app shows, as plain Python / pandas objects.
 
     Soil water capacity, tile drainage and slope come from the field profile (SSURGO/SRTM)
@@ -169,6 +169,10 @@ def run_basic(lat, lon, rotations=None, awc_mm_per_m=None, tile_drained=None, al
     if detrend_temperature:            # playbook 6.9: past years at today's temperatures (water model only)
         model_df, detrend_report = trends_mod.detrend_temperature(
             df.loc[str(config.WATER_START_YEAR):str(config.WATER_END_YEAR)], end_year=config.WATER_END_YEAR)
+    if delta_temp_c or summer_rain_pct:   # what-if sliders (scenarios.py): shift the weather the model uses
+        from fieldshift.model import scenarios as scen_mod
+        model_df = scen_mod.apply_delta(model_df, delta_temp_c, summer_rain_pct)
+    if detrend_temperature or delta_temp_c or summer_rain_pct:
         geom = meta.get("geometry") or {}
         coords = geom.get("coordinates") or []
         with warnings.catch_warnings():
@@ -180,17 +184,19 @@ def run_basic(lat, lon, rotations=None, awc_mm_per_m=None, tile_drained=None, al
         prof = profile or field_profile(lat, lon, geojson, overrides)
     awc = float(awc_mm_per_m if awc_mm_per_m is not None else prof.awc_mm_per_m)
     tiled = bool(tile_drained if tile_drained is not None else prof.tile_drained)
+    wbp, drainage_note = drainage_params(prof.soil, tiled)
     hsg = prof.hydrologic_group if use_runoff else None
 
     yearly = yearly_indicators(df)
     start, end = config.WATER_START_YEAR, config.WATER_END_YEAR
 
-    tables, rows, ordinal = {}, [], {}
+    tables, rows, ordinal, dailies = {}, [], {}, {}
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         for name, plan in rotations.items():
             t = simulate_rotation(plan, model_df["PRECTOTCORR"], et0, awc, tiled, start, end,
-                                  hydrologic_group=hsg, rotation_id=name)
+                                  hydrologic_group=hsg, rotation_id=name, keep_daily=True, **wbp)
+            dailies[name] = t.attrs.pop("daily", None)
             tables[name] = t
             rows.append({"rotation": name, **t[list(WATER_COLUMNS)].mean().to_dict()})
             lib = _LIBRARY.get(name)
@@ -206,16 +212,23 @@ def run_basic(lat, lon, rotations=None, awc_mm_per_m=None, tile_drained=None, al
         "years": {"weather": [int(yearly.index.min()), int(yearly.index.max())],
                   "water_model": [start, end]},
         "soil": {"awc_mm_per_m": awc, "tile_drained": tiled, "hydrologic_group": prof.hydrologic_group,
-                 "source": prof.sources.get("soil", "typical value")},
+                 "source": prof.sources.get("soil", "typical value"),
+                 "drainage": wbp, "drainage_note": drainage_note},
         "field": prof.to_dict(),
         "snapshot": snapshot(yearly),
         "notable_years": notable_years(yearly),
         "yearly": yearly,
         "water": water,
         "tables": tables,                 # rotation x year table per rotation (bootstrap, replay)
+        "daily": dailies,                 # {rotation: {phase: daily stressed/sensitive/waterlogged}} (calendar)
+        "model_weather": model_df,        # weather the water model used (detrended / scenario if asked)
         "weather": df,                    # daily NASA POWER as recorded (validation, charts)
         "trends": trends_mod.climate_trends(df),   # per-indicator trend table with sentences (raw weather)
         "detrend": detrend_report,        # None unless detrend_temperature=True
+        "what_if": {"delta_temp_c": delta_temp_c, "summer_rain_pct": summer_rain_pct},
+        "meta": {"latitude": meta["cell"]["centre"][0],
+                 "elevation_m": ((meta.get("geometry") or {}).get("coordinates") or [None, None, None])[2],
+                 "rs_units": meta.get("units", {}).get("ALLSKY_SFC_SW_DWN", "MJ/m^2/day")},
         "et0": et0,                       # daily reference ET, mm/day
         "criteria_raw": criteria_raw,     # raw criterion values in real units
         "ordinal_scores": ordinal,        # 0-3 literature scores per rotation (rotations.py)
@@ -402,7 +415,8 @@ def validate(out: dict, smap_path=None, ndvi_path=None, smap_max_km: float = 15.
                      f"({'-'.join(seq)}) as a stand-in, so crop timing may not match reality.")
     hist = {y: hist[str(y)] for y in map(str, years)}
     daily = val.run_actual_crops(out["weather"]["PRECTOTCORR"], out["et0"], hist,
-                                 out["soil"]["awc_mm_per_m"], out["soil"]["tile_drained"])
+                                 out["soil"]["awc_mm_per_m"], out["soil"]["tile_drained"],
+                                 **out["soil"].get("drainage", {}))
     notes += daily.attrs.get("notes", [])
     model = daily["wetness_root"]
 
@@ -502,6 +516,8 @@ def run_analysis(lat: float, lon: float, answers: dict | None = None, weights: d
             income_note = income_mod.missing_summary(inc)
     out = run_basic(lat, lon, rotations=rotations, allow_download=allow_download, geojson=geojson,
                     detrend_temperature=bool(answers.get("detrend_temperature", False)),
+                    delta_temp_c=float(answers.get("delta_temp_c", 0.0) or 0.0),
+                    summer_rain_pct=float(answers.get("delta_summer_rain_pct", 0.0) or 0.0),
                     overrides=overrides, income=income, profile=prof, income_ranges=income_ranges)
     out["baseline"] = cands[0].name if cands[0].name in out["tables"] else out["baseline"]
 
@@ -512,9 +528,13 @@ def run_analysis(lat: float, lon: float, answers: dict | None = None, weights: d
     verdict_info = verdict(robust, out["baseline"])
     from fieldshift.model import calendar as calendar_mod
     shown_names = [out["baseline"]] + [p["name"] for p in picks]
-    calendars = {n: calendar_mod.field_calendar(rotations[n], out["weather"], out["et0"],
-                                                out["soil"]["awc_mm_per_m"], out["soil"]["tile_drained"])
+    calendars = {n: calendar_mod.field_calendar(rotations[n], out["model_weather"], out["et0"],
+                                                out["soil"]["awc_mm_per_m"], out["soil"]["tile_drained"],
+                                                dailies=out["daily"].get(n), wb_kwargs=out["soil"]["drainage"])
                  for n in shown_names if n in rotations}
+    from fieldshift.model import risks as risks_mod
+    risk_flags = {n: risks_mod.risk_flags(rotations[n], out["model_weather"], out["daily"].get(n))
+                  for n in shown_names if n in rotations}
     by_name = {c.name: c for c in cands}
     year = replay_year or 2012
     return {
@@ -525,6 +545,8 @@ def run_analysis(lat: float, lon: float, answers: dict | None = None, weights: d
         "shown": [{"name": out["baseline"], "tier": "current"}] + picks,
         "verdict": verdict_info,          # is any option really better than the current rotation?
         "calendar": calendars,            # field calendar (half-months x rotation years) per shown rotation
+        "risk_flags": risk_flags,         # field-specific risk flags per shown rotation (model/risks.py)
+        "risk_note": risks_mod.unverified_note([f for fl in risk_flags.values() for f in fl]),
         "ranking": robust["summary"],
         "point_scores": point,
         "criteria_raw": out["criteria_raw"],
@@ -543,6 +565,7 @@ def run_analysis(lat: float, lon: float, answers: dict | None = None, weights: d
         "flags": {n: by_name[n].flags for n in by_name},
         "dropped_criteria": robust["dropped"],
         "income": {"usd_per_acre": income or {}, "ranges": income_ranges, "note": income_note},
+        "weights": weights,
         "run": out,                      # everything else (tables, weather, ...) for charts
     }
 
@@ -594,3 +617,64 @@ def verdict(robust: dict, baseline: str) -> dict:
         msg = (f"{best} beats your current rotation in {p_better:.0%} of plausible years, prices and "
                "weightings - an option worth exploring with your agronomist.")
     return {"kind": kind, "best_alternative": best, "p_better": round(p_better, 3), "message": msg}
+
+
+# --- What-if scenarios (model/scenarios.py) -------------------------------------------------------------
+def what_if(res: dict, scenarios: dict | None = None, rotations: list | None = None) -> dict:
+    """The rotations shown to the farmer under the +1/+2 C and -10/-20 % summer-rain scenarios
+    (scenarios.SCENARIOS). Separate from run_analysis so the app can load it in its own tab.
+    res: the dict returned by run_analysis."""
+    from fieldshift.model import scenarios as scen_mod
+    out = res["run"]
+    names = rotations or [s["name"] for s in res["shown"]]
+    plans = {n: res["candidates"][n]["plan"] for n in names}
+    sliders = {APP_SLIDERS.get(k, k): v for k, v in res["weights"].items()}
+    income = {n: v for n, v in (res["income"]["usd_per_acre"] or {}).items() if n in plans}
+    if len(income) != len(plans):
+        income = None
+    m = out["meta"]
+    return scen_mod.run_scenarios(
+        out["weather"], plans, out["soil"]["awc_mm_per_m"], out["soil"]["tile_drained"], m["latitude"],
+        res["existing"]["name"], sliders, {n: out["ordinal_scores"][n] for n in plans},
+        slope_factor=out["field"]["slope"].get("rusle_s"), income=income, scenarios=scenarios,
+        elevation_m=m["elevation_m"], rs_units=m["rs_units"], wb_kwargs=out["soil"].get("drainage"))
+
+
+# --- Drainage of untiled fields from SSURGO -------------------------------------------------------------
+SPRING_MONTHS = (4, 5, 6)      # SSURGO wtdepaprjunmin describes the April-June water table
+SHALLOW_MAJORITY = 0.5         # the field (one bucket) counts as having a high spring water table when
+                               # most of its area does
+
+
+def drainage_params(soil: dict, tiled: bool) -> tuple[dict, str]:
+    """Water-model drainage settings for this field (empty dict = water_balance defaults).
+
+    Tiled: tiles remove excess water the same day, so nothing to set.
+    Untiled, with SSURGO hydraulics:
+      drainage capacity  = Ksat of the most restrictive layer in the top 1.5 m (mm/day)
+      April-June         = 0 if most of the field (>= SHALLOW_MAJORITY) has a water table within 1 m
+                           (SSURGO wtdepaprjunmin): the root zone then sits on saturated soil and water
+                           cannot drain out of the bottom; otherwise the Ksat rate
+      max surplus        = water the top metre holds between field capacity and saturation
+    """
+    if tiled:
+        return {}, "Tile-drained: excess water leaves through the tiles the same day."
+    ks, dr, share = soil.get("ksat_mm_day"), soil.get("drainable_mm"), soil.get("spring_wt_shallow_share")
+    if not ks or dr is None or share is None:
+        return {}, ("Untiled field without SSURGO drainage data: default drainage used "
+                    f"({wb_defaults()['untiled_drain_mm_day']:.0f} mm/day, {wb_defaults()['max_surplus_mm']:.0f} mm "
+                    "above field capacity) - treat waterlogging results as rough.")
+    high_wt = share >= SHALLOW_MAJORITY
+    params = {"untiled_drain_mm_day": ks, "max_surplus_mm": max(dr, 1.0)}
+    if high_wt:
+        params["untiled_drain_by_month"] = {m: 0.0 for m in SPRING_MONTHS}
+    spring_txt = (f"none in April-June, because {share:.0%} of the field has a spring water table within 1 m"
+                  if high_wt else f"also in spring (only {share:.0%} of the field has a spring water table within 1 m)")
+    note = (f"Untiled: drainage up to {ks:.0f} mm/day (SSURGO restrictive-layer Ksat), {spring_txt}; the soil "
+            f"holds {dr:.0f} mm above field capacity before water runs off (SSURGO saturation - field capacity).")
+    return params, note
+
+
+def wb_defaults() -> dict:
+    from fieldshift.model import water_balance as wb
+    return {"untiled_drain_mm_day": wb.UNTILED_DRAIN_MM_DAY, "max_surplus_mm": wb.MAX_SURPLUS_MM}

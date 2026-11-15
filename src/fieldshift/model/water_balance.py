@@ -54,10 +54,9 @@ from fieldshift.model import crops as crops_mod
 
 # --- Settings (starting values; list in README "gaps") -----------------------
 PROFILE_DEPTH_M = crops_mod.MAX_ROOT_DEPTH_M  # 1 m, matches SSURGO aws0100wta
-UNTILED_DRAIN_MM_DAY = 10.0   # max drainage/day without tiles. PLACEHOLDER - should come
-                              # from SSURGO Ksat / drainage class
-MAX_SURPLUS_MM = 50.0         # water above field capacity the soil can hold before it runs
-                              # off (roughly saturation - FC). PLACEHOLDER
+UNTILED_DRAIN_MM_DAY = 10.0   # FALLBACK only: untiled fields normally get SSURGO values from
+MAX_SURPLUS_MM = 50.0         # pipeline.drainage_params() (restrictive-layer Ksat, spring water table,
+                              # saturation - field capacity). Used when SSURGO hydraulics are unavailable.
 WATERLOGGED_MM = 5.0          # surplus above this at the end of a day = waterlogged day
 INITIAL_FRACTION = 1.0        # start at field capacity (Iowa soils usually recharge over winter)
 ERODING_RAIN_MM = 12.7        # 0.5 inch: RUSLE ignores smaller storms (Renard et al. 1997, AH-703)
@@ -112,6 +111,7 @@ def run_water_balance(
     runoff_fraction: float = 0.0,
     untiled_drain_mm_day: float = UNTILED_DRAIN_MM_DAY,
     max_surplus_mm: float = MAX_SURPLUS_MM,
+    untiled_drain_by_month: dict | None = None,
     initial_fraction: float = INITIAL_FRACTION,
 ) -> pd.DataFrame:
     """Simulate the daily soil-water balance.
@@ -125,6 +125,10 @@ def run_water_balance(
     tile_drained  True if the field has tile drainage
     hydrologic_group  "A".."D" from SSURGO hydgrpdcd -> curve-number runoff; None -> runoff_fraction
     runoff_fraction   share of each day's rain that runs off when no hydrologic group (default 0)
+    untiled_drain_mm_day / untiled_drain_by_month / max_surplus_mm
+                      untiled fields only: drainage capacity (mm/day; a {month: rate} dict overrides it
+                      in those months, e.g. a high spring water table) and the water the soil holds above
+                      field capacity before it runs off. From SSURGO via pipeline.drainage_params().
 
     Returns a daily DataFrame (see column list at the end of this function).
     Raises ValueError if any input day is missing (ET0 is NaN before 1984 because
@@ -151,8 +155,28 @@ def run_water_balance(
     a = float(awc_mm_per_m)
 
     out = {k: np.zeros(n) for k in
-           ["runoff", "infiltration", "etc", "ks", "eta", "drainage", "depletion",
+           ["runoff", "infiltration", "ks", "eta", "drainage", "depletion",
             "taw", "raw", "sw_root", "sw_lower", "surplus"]}
+
+    # Terms that do not depend on the soil-water state: computed once for all days (speed).
+    etc_all = kc * ET0                                                      # crop water use
+    p_all_days = np.where(np.isnan(p_tab), 0.0,                             # bare soil: p = 0
+                          np.clip(p_tab + 0.04 * (5.0 - etc_all), 0.1, 0.8))  # FAO-56 Table 22 note
+    if hydrologic_group:
+        cn = np.array([_cn_for(c, hydrologic_group) for c in crop])
+        ro_all = np.array([curve_number_runoff(pp, c) for pp, c in zip(P, cn)])
+    else:
+        ro_all = runoff_fraction * P
+    # plain Python lists: indexing them in the loop is much faster than numpy scalars
+    zr_l, etc_l, p_l, ro_l, P_l = zr.tolist(), etc_all.tolist(), p_all_days.tolist(), ro_all.tolist(), P.tolist()
+    if untiled_drain_by_month:
+        months = idx.month.to_numpy()
+        drain_l = [float(untiled_drain_by_month.get(int(m), untiled_drain_mm_day)) for m in months]
+    else:
+        drain_l = [float(untiled_drain_mm_day)] * n
+    o_ro, o_inf, o_ks, o_eta, o_dp = out["runoff"], out["infiltration"], out["ks"], out["eta"], out["drainage"]
+    o_dep, o_taw, o_raw, o_sr, o_sl, o_sp = (out["depletion"], out["taw"], out["raw"], out["sw_root"],
+                                            out["sw_lower"], out["surplus"])
 
     # initial state
     zr_prev = zr[0]
@@ -162,7 +186,7 @@ def run_water_balance(
 
     for i in range(n):
         # 1) move the root/lower boundary to today's root depth (mass-conserving)
-        z = zr[i]
+        z = zr_l[i]
         if z > zr_prev:
             lower_depth = PROFILE_DEPTH_M - zr_prev
             moved = sw_lower * (z - zr_prev) / lower_depth if lower_depth > 1e-9 else 0.0
@@ -181,25 +205,24 @@ def run_water_balance(
         surplus = 0.0
 
         # 2) stress coefficient from start-of-day depletion (FAO-56 eq. 84)
-        etc = kc[i] * ET0[i]
-        dr = max(taw - sw_root, 0.0)
-        if np.isnan(p_tab[i]):                                   # bare soil
-            p_day = 0.0
-        else:
-            p_day = float(np.clip(p_tab[i] + 0.04 * (5.0 - etc), 0.1, 0.8))
+        etc = etc_l[i]
+        dr = taw - sw_root if taw > sw_root else 0.0
+        p_day = p_l[i]
         raw = p_day * taw
-        ks = 1.0 if dr <= raw else max((taw - dr) / ((1.0 - p_day) * taw), 0.0)
+        if dr <= raw:
+            ks = 1.0
+        else:
+            ks = (taw - dr) / ((1.0 - p_day) * taw)
+            ks = ks if ks > 0.0 else 0.0
 
         # 3) rain -> runoff / infiltration
-        if hydrologic_group:
-            ro = curve_number_runoff(P[i], _cn_for(crop[i], hydrologic_group))
-        else:
-            ro = runoff_fraction * P[i]
-        inf = P[i] - ro
+        ro = ro_l[i]
+        inf = P_l[i] - ro
         sw_root += inf
 
         # 4) crop water use (cannot take more than is there)
-        eta = min(ks * etc, sw_root)
+        eta = ks * etc
+        eta = eta if eta < sw_root else sw_root
         sw_root -= eta
 
         # 5) excess above field capacity: root zone -> lower zone -> surplus -> drainage
@@ -210,27 +233,29 @@ def run_water_balance(
         excess = sw_lower - taw_lower if sw_lower - taw_lower > EPS else 0.0
         sw_lower -= excess
         surplus += excess
-        dp = surplus if tile_drained else min(surplus, untiled_drain_mm_day)
+        cap = drain_l[i]
+        dp = surplus if (tile_drained or surplus < cap) else cap
         surplus -= dp
-        sat_ro = max(surplus - max_surplus_mm, 0.0)              # soil saturated -> runs off
+        sat_ro = surplus - max_surplus_mm if surplus > max_surplus_mm else 0.0   # soil saturated -> runs off
         surplus -= sat_ro
         ro += sat_ro
 
-        o = out
-        o["runoff"][i] = ro
-        o["infiltration"][i] = P[i] - ro
-        o["etc"][i] = etc
-        o["ks"][i] = ks
-        o["eta"][i] = eta
-        o["drainage"][i] = dp
-        o["depletion"][i] = max(taw - sw_root, 0.0)
-        o["taw"][i] = taw
-        o["raw"][i] = raw
-        o["sw_root"][i] = sw_root
-        o["sw_lower"][i] = sw_lower
-        o["surplus"][i] = surplus
+        o_ro[i] = ro
+        o_inf[i] = P_l[i] - ro
+        o_ks[i] = ks
+        o_eta[i] = eta
+        o_dp[i] = dp
+        o_dep[i] = taw - sw_root if taw > sw_root else 0.0
+        o_taw[i] = taw
+        o_raw[i] = raw
+        o_sr[i] = sw_root
+        o_sl[i] = sw_lower
+        o_sp[i] = surplus
 
+    out["etc"] = etc_all
     df = pd.DataFrame(out, index=idx)
+    df = df[["runoff", "infiltration", "etc", "ks", "eta", "drainage", "depletion", "taw", "raw",
+             "sw_root", "sw_lower", "surplus"]]
     df.insert(0, "precip", P)
     df.insert(1, "et0", ET0)
     df["kc"] = kc
@@ -320,6 +345,7 @@ def simulate_rotation(
     hydrologic_group: str | None = None,
     crops: pd.DataFrame | None = None,
     rotation_id: str | None = None,
+    keep_daily: bool = False,
     **wb_kwargs,
 ) -> pd.DataFrame:
     """Run every phase of a rotation and stack the yearly summaries.
@@ -328,16 +354,20 @@ def simulate_rotation(
     columns from yearly_summary plus 'phase'. Phases are pooled downstream
     (bootstrap.py), so every weather year meets every crop (playbook 6.2).
     """
-    tables = []
+    tables, dailies = [], {}
     for phase, ct in crops_mod.all_phases(rotation, start_year, end_year, crops=crops).items():
         daily = run_water_balance(precip_mm, et0_mm, ct, awc_mm_per_m, tile_drained,
                                   hydrologic_group, **wb_kwargs)
+        if keep_daily:      # small copy for the field calendar (stress and waterlogging by half-month)
+            dailies[phase] = daily[["stressed", "sensitive", "waterlogged"]].copy()
         y = yearly_summary(daily)
         y.insert(0, "phase", phase)
         tables.append(y.reset_index())
     table = pd.concat(tables, ignore_index=True)
     label = rotation_id or " / ".join("+".join(y) if isinstance(y, (list, tuple)) else y for y in rotation)
     table.insert(0, "rotation_id", label)
+    if keep_daily:
+        table.attrs["daily"] = dailies
     return table
 
 

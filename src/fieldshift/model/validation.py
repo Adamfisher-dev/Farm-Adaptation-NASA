@@ -131,7 +131,7 @@ def actual_crop_plan(crop_history: dict, crops: pd.DataFrame | None = None) -> t
 
 
 def run_actual_crops(precip_mm: pd.Series, et0_mm: pd.Series, crop_history: dict, awc_mm_per_m: float,
-                     tile_drained: bool, crops: pd.DataFrame | None = None) -> pd.DataFrame:
+                     tile_drained: bool, crops: pd.DataFrame | None = None, **wb_kwargs) -> pd.DataFrame:
     """Daily water balance for the CDL years with the crops that were really grown.
     Adds 'wetness_root' (root-zone water / capacity, 0-1) and 'wetness_profile' (top 1 m)."""
     plan, notes = actual_crop_plan(crop_history, crops)
@@ -141,7 +141,7 @@ def run_actual_crops(precip_mm: pd.Series, et0_mm: pd.Series, crop_history: dict
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         table = crops_mod.daily_crop_table(plan, years[0], years[-1], phase=0, crops=crops)
-    daily = wb.run_water_balance(precip_mm, et0_mm, table, awc_mm_per_m, tile_drained)
+    daily = wb.run_water_balance(precip_mm, et0_mm, table, awc_mm_per_m, tile_drained, **wb_kwargs)
     daily["wetness_root"] = (daily["sw_root"] / daily["taw"]).clip(0, 1.5)
     daily["wetness_profile"] = daily["storage"] / (awc_mm_per_m * wb.PROFILE_DEPTH_M)
     daily.attrs["notes"] = notes
