@@ -15,7 +15,8 @@
 # Set from the data (content/income.csv, 2026): at mid prices the candidate rotations span ~$80/acre
 # (corn-soybean -$4 to the 4-year Marsden rotation -$82) and corn-soybean alone swings $112 between the
 # low and high price. The old setting (scale 50, cap 0.5) saturated at $25, so a $40 and an $82 loss
-# scored the same.
+# scored the same. relative: false = income is compared in dollars, not as a % of the current rotation's
+# income, so the result does not depend on whether land rent is counted (income.py BASIS).
 #
 # drought_risk uses the water deficit in the crop's sensitive window (mm), not stressed days:
 # stressed days count any stress, however slight, and are high even in normal years.
@@ -26,6 +27,6 @@ criteria:
   som_proxy:        {type: literature,column: som_proxy,          statistic: fixed,     direction: benefit, slider: soil_erosion,     unit: ordinal_0_3}
   n_benefit:        {type: literature,column: n_benefit,          statistic: fixed,     direction: benefit, slider: pests_fertiliser, unit: ordinal_0_3}
   pest_break:       {type: literature,column: pest_break,         statistic: fixed,     direction: benefit, slider: pests_fertiliser, unit: ordinal_0_3}
-  income:           {type: data,      column: income_usd_per_acre,statistic: mean,      direction: benefit, slider: income,           unit: usd_per_acre, scale: 100.0, cap: 1.0}
+  income:           {type: data,      column: income_usd_per_acre,statistic: mean,      direction: benefit, slider: income,           unit: usd_per_acre, scale: 100.0, cap: 1.0, relative: false}
 
 sliders: [drought, soil_erosion, water_quality, income, pests_fertiliser]

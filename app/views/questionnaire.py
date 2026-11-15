@@ -18,7 +18,7 @@ PRIORITY_SLIDERS = {   # app weight key -> (label, help)
     "drought": ("Drought resilience", "Keeping the crop supplied with water at its most sensitive stage in dry years"),
     "water_quality": ("Water quality", "Less water - and the nitrate it carries - draining below the roots"),
     "soil_health": ("Soil health and erosion", "Living cover in heavy rain, especially on slopes; building organic matter"),
-    "income": ("Income", "Typical income after all costs, including land"),
+    "income": ("Income", "Typical return to land and management (revenue minus all costs except land rent)"),
     "pests": ("Pests and fertiliser", "Breaking pest and disease cycles; nitrogen from legumes"),
 }
 KEEP = {"persist_state": "session"}

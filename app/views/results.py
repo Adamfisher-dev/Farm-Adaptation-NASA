@@ -84,8 +84,10 @@ def _featured(r: dict, sel: str, best: str, order: list, fmt):
              "0.5 = same as now; higher is better for your priorities"),
             ("In a bad case", f"{row['score_p05']:.2f}", "score in the worst 5% of runs", ""),
             ("Chance it is best", f"{row['p_top']:.0%}", "of the runs over past weather and prices", ""),
-            ("Income", f"{ui.money(rng.get('mid'))}/acre",
-             f"{ui.money(rng.get('low'))} to {ui.money(rng.get('high'))} by price; after all costs", ""),
+            ("Return to land & management", f"{ui.money(rng.get('mid'))}/acre",
+             f"{ui.money(rng.get('low'))} to {ui.money(rng.get('high'))} by price; "
+             f"after land rent: {ui.money(r['income'].get('all_costs_usd_per_acre', {}).get(sel))}",
+             r["income"].get("land_rent_note", "")),
         ]
         cells = "".join(
             f'<div class="fs-stat" title="{html.escape(tip)}"><div class="l">{label}</div><div class="v">{value}</div>'
@@ -101,6 +103,14 @@ def _featured(r: dict, sel: str, best: str, order: list, fmt):
         else:
             st.markdown("**Compared with what you grow now**")
             st.html(_priority_bars(r["point_scores"]["slider_values"].loc[sel]))
+
+        risks = r.get("risk_flags", {}).get(sel, [])
+        if risks:                                   # field-specific weather risks (model/risks.py)
+            st.markdown("**Weather risks on this field**")
+            icon = {"warn": "⚠️", "watch": "👁️", "info": "ℹ️"}
+            st.markdown("\n".join(f"- {icon.get(f['level'], '')} {f['sentence']}" for f in risks))
+            if r.get("risk_note"):
+                st.caption(r["risk_note"])
 
         flags = r["flags"].get(sel, [])
         if flags:
@@ -136,10 +146,14 @@ def _details(r: dict, sel: str, order: list):
             "Overall fit": [rk.loc[n, "score_mean"] for n in order],
             "Bad case": [rk.loc[n, "score_p05"] for n in order],
             "Chance best": [rk.loc[n, "p_top"] for n in order],
-            "Income $/acre/yr": [inc.get(n) for n in order],
+            "Return $/acre/yr (before rent)": [inc.get(n) for n in order],
+            "After rent": [r["income"].get("all_costs_usd_per_acre", {}).get(n) for n in order],
         }, index=pd.Index([str(_risk_rank(r, order).get(n, "now")) for n in order], name="Risk rank"))
         st.dataframe(table.style.format({"Overall fit": "{:.2f}", "Bad case": "{:.2f}", "Chance best": "{:.0%}",
-                                         "Income $/acre/yr": "{:,.0f}"}, na_rep="n/a"), width="stretch")
+                                         "Return $/acre/yr (before rent)": "{:,.0f}", "After rent": "{:,.0f}"},
+                                        na_rep="n/a"), width="stretch")
+        if r["income"].get("basis"):
+            st.caption(f"Return: {r['income']['basis']}. {r['income'].get('land_rent_note', '')}")
         rob = (r.get("robustness") or {}).get("note")
         if rob:
             st.caption(rob)

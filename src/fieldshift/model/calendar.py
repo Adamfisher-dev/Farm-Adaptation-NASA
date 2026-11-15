@@ -124,15 +124,18 @@ def weather_shares(weather: pd.DataFrame, settings: dict | None = None,
 
 def water_shares(plan, precip: pd.Series, et0: pd.Series, awc_mm_per_m: float, tile_drained: bool,
                  crops: pd.DataFrame | None = None, start_year: int = config.WATER_START_YEAR,
-                 end_year: int = config.WATER_END_YEAR) -> pd.DataFrame:
+                 end_year: int = config.WATER_END_YEAR, dailies: dict | None = None,
+                 wb_kwargs: dict | None = None) -> pd.DataFrame:
     """Per (row, period): share of years with >= 1 water-stressed day in the sensitive window,
     and with >= 1 waterlogged day. Every phase is run, so every year is seen in every row."""
     n = len(plan)
     parts = []
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        for phase, ct in crops_mod.all_phases(plan, start_year, end_year, crops=crops).items():
-            d = wb.run_water_balance(precip, et0, ct, awc_mm_per_m, tile_drained)
+    if dailies is None:                 # no saved runs: run the water model for every phase
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            dailies = {ph: wb.run_water_balance(precip, et0, ct, awc_mm_per_m, tile_drained, **(wb_kwargs or {}))
+                       for ph, ct in crops_mod.all_phases(plan, start_year, end_year, crops=crops).items()}
+    for phase, d in dailies.items():
             parts.append(pd.DataFrame({
                 "row": _row_of(d.index, start_year, phase, n), "period": period_index(d.index),
                 "year": d.index.year, "stressed": d["stressed"] & d["sensitive"],
@@ -145,7 +148,8 @@ def water_shares(plan, precip: pd.Series, et0: pd.Series, awc_mm_per_m: float, t
 
 # --- The calendar -------------------------------------------------------------------------------------------
 def field_calendar(plan, weather: pd.DataFrame, et0: pd.Series, awc_mm_per_m: float, tile_drained: bool,
-                   crops: pd.DataFrame | None = None, settings: dict | None = None) -> dict:
+                   crops: pd.DataFrame | None = None, settings: dict | None = None,
+                   dailies: dict | None = None, wb_kwargs: dict | None = None) -> dict:
     """Calendar for one rotation on one field.
 
     Returns {"rows": [{"year_in_rotation", "label"}],
@@ -160,7 +164,8 @@ def field_calendar(plan, weather: pd.DataFrame, et0: pd.Series, awc_mm_per_m: fl
     n = len(plan)
     cyc = typical_cycle(plan, crops, settings)
     ws = weather_shares(weather, settings)
-    wat = water_shares(plan, weather["PRECTOTCORR"], et0, awc_mm_per_m, tile_drained, crops)
+    wat = water_shares(plan, weather["PRECTOTCORR"], et0, awc_mm_per_m, tile_drained, crops, dailies=dailies,
+                       wb_kwargs=wb_kwargs)
 
     cells = []
     for (row, p), c in cyc.iterrows():

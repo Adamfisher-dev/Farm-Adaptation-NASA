@@ -2,6 +2,14 @@
 income.py - Typical income of each rotation, USD per acre per year (the 'income' criterion,
 playbook 6.3). Reads content/income.csv and content/income_adjustments.csv.
 
+    Two bases (BASIS, default "land_and_management"):
+      land_and_management  revenue - all costs EXCEPT land rent = what is left to pay the rent or
+                           reward owning the land (Iowa State "return to land and management").
+                           Land rent is the same whatever is planted, so it cannot favour a rotation.
+      all_costs            revenue - all costs including land rent (Iowa State FM 1712 total);
+                           often negative at 2026 prices - the budgets themselves show this squeeze.
+    Both give the same DIFFERENCES between rotations (every year carries one land charge).
+
     net return of a year = yield x price - production cost            (cash crop)
                          - cover-crop cost + cost-share               (cover crop that winter)
                          - seed cost of a crop sown under the oats    (red clover, alfalfa)
@@ -39,6 +47,9 @@ from fieldshift import config
 INCOME_CSV = config.CONTENT_DIR / "income.csv"
 ADJUSTMENTS_CSV = config.CONTENT_DIR / "income_adjustments.csv"
 UNDERSEED_ROW = {"red_clover": "red_clover", "alfalfa": "alfalfa_establishment"}
+BASES = {"land_and_management": "Return to land and management (revenue minus all costs except land rent)",
+         "all_costs": "Return over all costs, including land rent"}
+BASIS = "land_and_management"
 LONG_ROTATION_YEARS = 3          # 3+ year rotations that include a Marsden Farm crop get the
 MARSDEN_CROPS = {"oats", "red_clover", "alfalfa"}   # long-rotation yield effect (Davis et al. 2012 measured
                                  # it in corn-soybean-oats/red clover and corn-soybean-oats/alfalfa-alfalfa;
@@ -65,14 +76,14 @@ def load_tables(income_path=None, adjustments_path=None) -> tuple[pd.DataFrame, 
 
 
 def _num(crops: pd.DataFrame, crop: str, col: str):
-    if crop not in crops.index:
+    if crop not in crops.index or col not in crops.columns:
         return np.nan
     return pd.to_numeric(crops.loc[crop, col], errors="coerce")
 
 
 # --- One rotation ------------------------------------------------------------------------------
 def rotation_income(plan, crops: pd.DataFrame | None = None, adj: dict | None = None,
-                    price: str = "mid") -> dict:
+                    price: str = "mid", basis: str = BASIS) -> dict:
     """Income of one rotation (crops.py plan format).
 
     Returns {"usd_per_acre": float or NaN, "years": [per-year breakdown], "missing": [cells needed]}.
@@ -129,6 +140,8 @@ def rotation_income(plan, crops: pd.DataFrame | None = None, adj: dict | None = 
             notes.append("after rye cover")
 
         cash_net = y * (1 + yield_pct / 100.0) * p - c - extra_cost + n_credit
+        if basis == "land_and_management":           # land rent is inside cost_per_acre: add it back
+            cash_net += need(cash, "land_cost_per_acre")
         under_cost = need(UNDERSEED_ROW.get(under, under), "cost_per_acre") if under else 0.0
         cover_net = 0.0
         if cover:
@@ -143,15 +156,16 @@ def rotation_income(plan, crops: pd.DataFrame | None = None, adj: dict | None = 
             "years": years, "missing": sorted(set(missing))}
 
 
-def income_range(plan, crops=None, adj=None) -> dict:
+def income_range(plan, crops=None, adj=None, basis: str = BASIS) -> dict:
     """{"low", "mid", "high"} USD/acre/yr for the three price columns (NaN where data are missing)."""
     if crops is None:
         crops, adj = load_tables()
-    return {p: rotation_income(plan, crops, adj, p)["usd_per_acre"] for p in ("low", "mid", "high")}
+    return {p: rotation_income(plan, crops, adj, p, basis)["usd_per_acre"] for p in ("low", "mid", "high")}
 
 
 # --- Many rotations (what the pipeline calls) ------------------------------------------------------
-def rotation_incomes(rotations: dict, price: str = "mid", income_path=None, adjustments_path=None) -> dict:
+def rotation_incomes(rotations: dict, price: str = "mid", income_path=None, adjustments_path=None,
+                     basis: str = BASIS) -> dict:
     """{name: plan} -> {"income": {name: USD/acre/yr} for rotations with complete data,
                         "missing": {name: [cells]}, "complete": bool}.
     Pass result["income"] to pipeline.run_basic(income=...) only when complete is True: scoring
@@ -162,7 +176,7 @@ def rotation_incomes(rotations: dict, price: str = "mid", income_path=None, adju
         return {"income": {}, "missing": {"all": [str(err)]}, "complete": False}
     income, missing = {}, {}
     for name, plan in rotations.items():
-        res = rotation_income(plan, crops, adj, price)
+        res = rotation_income(plan, crops, adj, price, basis)
         if res["missing"]:
             missing[name] = res["missing"]
         else:
@@ -207,8 +221,8 @@ if __name__ == "__main__":
         "C-S-O/A-A": ([["corn"], ["soybean"], ["oats+alfalfa"], ["alfalfa"]], 86.25),
     }
     for name, (plan, expected) in cases.items():
-        r = rotation_income(plan, crops, adj)
-        rng = income_range(plan, crops, adj)
+        r = rotation_income(plan, crops, adj, basis="all_costs")
+        rng = income_range(plan, crops, adj, basis="all_costs")
         print(f"{name:<10} ${r['usd_per_acre']:>6.1f}/acre (low {rng['low']:.0f}, high {rng['high']:.0f}) | "
               + "; ".join(f"{y['crop']} {y['total']:.0f}" + (f" ({', '.join(y['adjustments'])})" if y['adjustments'] else "")
                           for y in r["years"]))
@@ -217,10 +231,19 @@ if __name__ == "__main__":
     # yield effects: corn after corn -10 % and +$40; long rotation +4 % corn / +16 % soybean
     adj2 = dict(adj, corn_after_corn_yield_pct=-10, corn_after_corn_extra_cost=40,
                 long_rotation_corn_yield_pct=4, long_rotation_soybean_yield_pct=16)
-    ccs = rotation_income([["corn"], ["corn"], ["soybean"]], crops, adj2)
+    ccs = rotation_income([["corn"], ["corn"], ["soybean"]], crops, adj2, basis="all_costs")
     print("C-C-S with effects:", ccs["usd_per_acre"], [round(y["total"]) for y in ccs["years"]])
     assert abs(ccs["years"][1]["total"] - (200 * 0.90 * 4.5 - 800 - 40)) < 1e-6   # -10 %, no Marsden bonus (not diversified)
-    csoaa = rotation_income([["corn"], ["soybean"], ["oats+alfalfa"], ["alfalfa"]], crops, adj2)
+    csoaa = rotation_income([["corn"], ["soybean"], ["oats+alfalfa"], ["alfalfa"]], crops, adj2, basis="all_costs")
+
+    # land basis: without a land column it is reported missing; with one it adds back exactly the rent
+    assert "income.csv: corn.land_cost_per_acre" in rotation_income([["corn"], ["soybean"]], crops, adj)["missing"]
+    crops_land = crops.copy()
+    crops_land["land_cost_per_acre"] = np.where(crops_land["role"] == "cash", 281.0, np.nan)
+    a_all = rotation_income([["corn"], ["soybean"]], crops_land, adj, basis="all_costs")["usd_per_acre"]
+    a_land = rotation_income([["corn"], ["soybean"]], crops_land, adj, basis="land_and_management")["usd_per_acre"]
+    print(f"C-S all costs {a_all} -> return to land and management {a_land}")
+    assert abs((a_land - a_all) - 281.0) < 1e-6
     assert abs(csoaa["years"][1]["total"] - (60 * 1.16 * 11 - 570)) < 1e-6        # +16 % soybean in a diversified rotation
 
     # a blank table -> nothing is scored, and the missing cells are listed

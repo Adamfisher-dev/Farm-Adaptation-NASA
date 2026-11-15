@@ -1,0 +1,46 @@
+# Risk flags (model/risks.py): field-specific warnings with how often each happened in 1984-2025.
+# They do NOT change the scores; they feed the cards' "risks" part and the calendar marks.
+#
+# basis says where each number comes from:
+#   project   - already used elsewhere in the project (config.py / content/calendar.yaml)
+#   standard  - a standard definition (named)
+#   STARTING VALUE - a placeholder that NEEDS A SOURCE before the demo (verified: false)
+
+levels:                         # how a flag is shown, by share of years it happened
+  warn: 0.33                    # >= 1 year in 3
+  watch: 0.10                   # >= 1 year in 10 (below: info)
+
+cover_establishment:            # will a cover crop sown after harvest get established before winter?
+  covers: [cereal_rye]
+  gdd_base_c: 0.0               # small grains grow from about 0 C (cool-season base). basis: STARTING VALUE
+  hard_freeze_c: -2.2           # 28 F. basis: standard (US National Weather Service "hard freeze"); reported as a fact
+  growth_end_md: "12-31"        # warmth is counted from seeding to here: cereal rye is winter-hardy and keeps
+                                # growing on mild days after the first hard freeze. basis: STARTING VALUE
+  required_gdd: 200.0           # growing degree days (base 0 C) needed between seeding and growth_end_md.
+                                # basis: STARTING VALUE - needs Iowa State / Midwest Cover Crops Council guidance
+  verified: false
+
+frost_after_planting:           # uses content/calendar.yaml risks.frost (tmin_c, days_after_planting). basis: project
+  tolerant: [oats, winter_wheat]   # small grains tolerate light frost: flagged as info, not a warning
+  verified: false
+
+heat_at_sensitive_stage:        # hot days during the crop's yield-sensitive window (content/crops.csv)
+  heat_c: 35.0                  # daily maximum above this. basis: STARTING VALUE - needs Iowa State guidance
+  min_hot_days: 3               # a year counts when there are at least this many hot days. basis: STARTING VALUE
+  crops: [corn, soybean]
+  verified: false
+
+wet_planting:                   # too wet to plant on time
+  window_days: 14               # the two weeks starting on the usual planting date (content/crops.csv)
+  gauge_wet_day_mm: 1.0         # a rain day at a rain gauge: >= 1 mm. basis: project (config.DRY_DAY_MM)
+  wet_day_mm: 2.42              # the same for NASA POWER, CALIBRATED: POWER (a ~50 km reanalysis average) has
+                                # ~35 % more rain days than the Ames 5 SE gauge (Apr-Jun 1984-2025: 42.5 % vs
+                                # 31.6 % of days >= 1 mm); POWER >= 2.42 mm gives the gauge's frequency.
+                                # risks.py recomputes this from data/raw/ground when available; this value is
+                                # the fallback. basis: measured (validation against the ground station)
+  calibration_months: [4, 5, 6]
+  min_wet_days: 8               # a year counts when >= this many rain days fall in the window, or any day is
+                                # waterlogged in the water model. basis: STARTING VALUE - USDA NASS "days
+                                # suitable for fieldwork" (Iowa Crop Progress) could define and check it
+  crops: [corn, soybean, oats]
+  verified: false
