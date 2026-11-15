@@ -237,6 +237,10 @@ if __name__ == "__main__":
         steps |= {"smap", "hls"}
     if "ssurgo" in steps:
         ssurgo_attributes()
+    if "soilmap" in steps:                   # whole-county soil survey for the app (sample_data, ~1 MB)
+        from fieldshift.data import soil as soil_mod
+        print("SSURGO county grid:", soil_mod.build_county_files())
+        print("example-field soils:", [e["name"] for e in soil_mod.save_example_profiles()])
     if "srtm" in steps:
         srtm_tiles()
     if "cdl" in steps:

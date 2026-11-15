@@ -82,6 +82,9 @@ def test_field_profile_falls_back_without_data(monkeypatch, tmp_path):
     soil._cached_ssurgo.cache_clear()
     monkeypatch.setattr(soil, "find_ssurgo_files", lambda folder=tmp_path: (_ for _ in ()).throw(FileNotFoundError("none")))
     monkeypatch.setattr(soil, "sda_field_mapunits", lambda *a, **k: (_ for _ in ()).throw(ValueError("offline")))
+    monkeypatch.setattr(soil, "county_soil_profile", lambda *a, **k: None)   # no saved county survey either
+    monkeypatch.setattr(soil, "saved_profile", lambda *a, **k: None)         # nor saved example-field soils
+    monkeypatch.setattr(soil, "_session_cache", {})
     monkeypatch.setattr(terrain, "load_dem", lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError("none")))
     monkeypatch.setattr(cdl, "CDL_DIR", tmp_path)
     monkeypatch.setattr(cdl, "available_years", lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError("none")))

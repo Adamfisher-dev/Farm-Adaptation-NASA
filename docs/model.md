@@ -15,7 +15,7 @@ trends, income). `pipeline.what_if(result)` adds the scenario table.
 | Module | Source | Output |
 |---|---|---|
 | `power.py` | NASA POWER daily point API (AG community), cell of ~0.5 x 0.625 deg | daily T2M, T2M_MAX, T2M_MIN, T2MDEW, RH2M, WS2M, PS, PRECTOTCORR, ALLSKY/CLRSKY_SFC_SW_DWN, GWETTOP, GWETROOT; units checked against the response metadata; -999 -> missing |
-| `soil.py` | USDA NRCS SSURGO via Soil Data Access (live), area-weighted over the field | plant-available water (aws0100wta x 10, mm/m), drainage class, hydrologic group, slope; for untiled fields: restrictive-layer Ksat, saturation minus field capacity (top 1 m), share of the field with an April-June water table < 1 m |
+| `soil.py` | USDA NRCS SSURGO: the Story County survey (IA169) saved in `sample_data/` - map units rasterised to a 30 m EPSG:5070 grid + map-unit and component tables; live Soil Data Access only outside the county (8 s timeout, then a typical soil). Area-weighted over the field | plant-available water (aws0100wta x 10, mm/m), drainage class, hydrologic group, slope; for untiled fields: restrictive-layer Ksat, saturation minus field capacity (top 1 m), share of the field with an April-June water table < 1 m |
 | `terrain.py` | NASA SRTM GL1 (30 m), elevation smoothed over 5 x 5 cells | slope cross-check (SSURGO slope is used for scoring: SRTM's ~1 m noise is as large as the slopes here) |
 | `cdl.py` | USDA NASS Cropland Data Layer 2008-2025 | majority crop per year in the field; guessed current rotation (shortest repeating cycle) |
 | `ground.py` | Iowa Environmental Mesonet | ISU Soil Moisture Network AEEI4 (30/60/127 cm, frozen days removed); NWS COOP IA0203 daily weather (high and rain shifted one day back: morning observer) |
@@ -126,7 +126,9 @@ years (half-life 15 years, ~34 effective years).
 ## 10. Validation (`model/validation.py`)
 
 Anomaly comparisons (wetter/drier than normal for the time of year, April-October) because point probes,
-9 km satellite pixels and the modelled root zone measure different things; weather compared daily
+9 km satellite pixels and the modelled root zone measure different things. SMAP uses only
+recommended-quality retrievals (retrieval_qual_flag bit 0), from the nearest example point whose cell has
+enough of them (cells dominated by urban area or water have none); weather compared daily
 (temperature) and monthly (rain). Results are in the README. NDVI vs modelled Kc checks the crop calendar
 (green-up and brown-down dates interpolated between clear images).
 

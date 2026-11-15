@@ -359,13 +359,28 @@ def validate(out: dict, smap_path=None, ndvi_path=None, smap_max_km: float = 15.
     km = math.hypot((plat - lat) * 110.5, (plon - lon) * 111.3 * math.cos(math.radians(lat)))
 
     sm = nd = None
-    if km <= smap_max_km:
-        try:
-            sm = smap_mod.load_smap(pid, smap_path or config.SMAP_DAILY_CSV)
-        except (FileNotFoundError, ValueError) as err:
-            notes.append(f"SMAP not available yet: {err}")
-    else:
-        notes.append(f"No SMAP point within {smap_max_km:.0f} km (nearest: {pid}, {km:.0f} km).")
+    smap_point = None
+
+    def dist_km(k):
+        plat_k, plon_k = config.EXAMPLE_POINTS[k]
+        return math.hypot((plat_k - lat) * 110.5, (plon_k - lon) * 111.3 * math.cos(math.radians(lat)))
+
+    # SMAP (9 km): nearest example point whose cell has enough recommended-quality retrievals. Cells with
+    # much urban area or open water (e.g. around Ames) are never flagged recommended and are skipped.
+    try:
+        for k in sorted(config.EXAMPLE_POINTS, key=dist_km):
+            if dist_km(k) > smap_max_km:
+                break
+            cand = smap_mod.load_smap(k, smap_path or config.SMAP_DAILY_CSV)
+            if int(cand.notna().sum().max()) >= val.MIN_PAIRS:
+                sm, smap_point = cand, {"point": k, "distance_km": round(dist_km(k), 1)}
+                break
+            notes.append(f"The SMAP 9 km cell at '{k}' has no recommended-quality retrievals (urban area or "
+                         "water in the cell) - skipped.")
+        if sm is None:
+            notes.append(f"No SMAP cell with good-quality data within {smap_max_km:.0f} km of this field.")
+    except (FileNotFoundError, ValueError) as err:
+        notes.append(f"SMAP not available yet: {err}")
     if km <= ndvi_max_km:
         try:
             nd = ndvi_mod.load_ndvi(pid, ndvi_path or config.HLS_NDVI_CSV)["ndvi"]
@@ -463,7 +478,8 @@ def validate(out: dict, smap_path=None, ndvi_path=None, smap_max_km: float = 15.
     if nd is not None:
         ndvi_res = val.compare_ndvi(daily, nd)
         sentences.append(val.ndvi_sentence(ndvi_res))
-    return {"available": True, "point": pid, "distance_km": round(km, 1), "years": [years[0], years[-1]],
+    return {"available": True, "point": pid, "distance_km": round(km, 1), "smap_point": smap_point,
+            "years": [years[0], years[-1]],
             "notes": notes, "comparisons": comparisons, "ndvi": ndvi_res, "weather": weather,
             "sentences": sentences}
 
