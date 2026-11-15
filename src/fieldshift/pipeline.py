@@ -28,6 +28,7 @@ from fieldshift import config
 from fieldshift.data import field as field_mod
 from fieldshift.data.power import load_power
 from fieldshift.model import rotations as rot_mod
+from fieldshift.model import income as income_mod
 from fieldshift.model import scoring
 from fieldshift.model import trends as trends_mod
 from fieldshift.model.et0 import et0_from_power
@@ -505,13 +506,13 @@ def run_analysis(lat: float, lon: float, answers: dict | None = None, weights: d
         small_grain_buyer=answers.get("small_grain_buyer", True),
         existing_rotation=existing)
     rotations = {c.name: c.plan for c in cands}
-    income_note, income_ranges = "", {}
+    income_note, income_ranges, income_all_costs = "", {}, {}
     if income is None:                        # content/income.csv, once it is filled in
-        from fieldshift.model import income as income_mod
         inc = income_mod.rotation_incomes(rotations)
         if inc["complete"]:
             income = inc["income"]
             income_ranges = {n: income_mod.income_range(p) for n, p in rotations.items()}
+            income_all_costs = income_mod.rotation_incomes(rotations, basis="all_costs")["income"]
         else:
             income_note = income_mod.missing_summary(inc)
     out = run_basic(lat, lon, rotations=rotations, allow_download=allow_download, geojson=geojson,
@@ -564,7 +565,11 @@ def run_analysis(lat: float, lon: float, answers: dict | None = None, weights: d
         "notable_years": out["notable_years"],
         "flags": {n: by_name[n].flags for n in by_name},
         "dropped_criteria": robust["dropped"],
-        "income": {"usd_per_acre": income or {}, "ranges": income_ranges, "note": income_note},
+        "income": {"usd_per_acre": income or {}, "ranges": income_ranges, "note": income_note,
+                   "basis": income_mod.BASES[income_mod.BASIS],
+                   "all_costs_usd_per_acre": income_all_costs,
+                   "land_rent_note": "Return over all costs also subtracts land rent ($281/acre, Story County "
+                                     "2026, Iowa State FM 1851); at 2026 prices that is often negative."},
         "weights": weights,
         "run": out,                      # everything else (tables, weather, ...) for charts
     }

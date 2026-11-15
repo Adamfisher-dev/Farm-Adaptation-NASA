@@ -120,7 +120,10 @@ def criterion_value(x, x_existing, c: dict) -> np.ndarray:
     if c.get("unit") == "ordinal_0_3":
         v = 0.5 + (x - xe) / 6.0
     else:
-        denom = np.maximum(np.abs(xe), float(c.get("scale", 1.0)))
+        if c.get("relative", True):        # change relative to the current rotation (most criteria)
+            denom = np.maximum(np.abs(xe), float(c.get("scale", 1.0)))
+        else:                               # absolute change in the criterion's own unit (income, $)
+            denom = np.full_like(np.asarray(xe, dtype=float), float(c.get("scale", 1.0)))
         r = (xe - x) / denom if c["direction"] == "cost" else (x - xe) / denom
         v = 0.5 + 0.5 * np.clip(r / float(c.get("cap", 0.5)), -1, 1)
     return np.clip(v, 0, 1)

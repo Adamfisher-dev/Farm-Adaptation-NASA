@@ -37,7 +37,7 @@ CRITERIA = {                                          # criterion -> (label, uni
     "som_proxy": ("Soil organic matter (literature score)", "0-3"),
     "n_benefit": ("Nitrogen from legumes (literature score)", "0-3"),
     "pest_break": ("Pest and disease break (literature score)", "0-3"),
-    "income": ("Income after all costs incl. land", "$/acre/yr"),
+    "income": ("Return to land and management (before land rent)", "$/acre/yr"),
 }
 EXISTING_CHOICES = {
     "As the crop maps show": None,
@@ -238,8 +238,10 @@ with tabs[0]:
                       help=f"Range {row['score_p05']:.2f}-{row['score_p95']:.2f} across past years and weightings")
             st.caption(f"Chance of being the best option: {row['p_top']:.0%}")
             if rng:
-                st.caption(f"Income: {money(rng.get('mid'))}/acre/yr ({money(rng.get('low'))} to {money(rng.get('high'))} "
-                           "with low/high prices)")
+                st.caption(f"Return to land and management: {money(rng.get('mid'))}/acre/yr "
+                           f"({money(rng.get('low'))} to {money(rng.get('high'))} with low/high prices); "
+                           f"after land rent: {money(inc.get('all_costs_usd_per_acre', {}).get(name))}",
+                           help=inc.get("land_rent_note"))
             for f in r["flags"].get(name, []):
                 st.caption(f"- {f}")
     st.subheader("All rotations compared")
