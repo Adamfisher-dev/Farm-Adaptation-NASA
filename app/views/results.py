@@ -1,6 +1,6 @@
 """Step 3: results.
 
-Four sections, each with the same rotation switcher at the top (Current, Best fit, Risk 1, Risk 2;
+Four sections, each with the same rotation switcher at the top (Current, Best fit, Rotation 2, Rotation 3;
 the switchers stay in sync):
     1. Featured rotation   key numbers, comparison with what the farmer grows now, things to check
     2. Rotation calendar   what is in the field through the year
@@ -15,6 +15,7 @@ import pandas as pd
 import streamlit as st
 
 import calendar_view
+import services
 import ui
 from fieldshift import pipeline
 
@@ -65,8 +66,9 @@ def _featured(r: dict, label: str, name: str, labels: list):
     cand = r["candidates"][name]
     row = r["ranking"].loc[name]
     is_current = cand.get("tier") == "current"
+    ui.section_heading("Your recommended rotation", number=1,
+                       sub="Switch between your current rotation, the best fit and the next two.")
     with ui.section("featured"):
-        st.html('<p class="fs-kicker">Featured rotation</p>')
         _switcher("pick_featured", labels)
         _header(label, name, cand)
 
@@ -77,11 +79,12 @@ def _featured(r: dict, label: str, name: str, labels: list):
         rng = r["income"]["ranges"].get(name, {})
         diff = row["score_mean"] - 0.5
         fit_note = ('<div class="n">what the others are compared with</div>' if is_current else
-                    f'<div class="n {"up" if diff >= 0 else "down"}">{diff:+.2f} vs what you grow now</div>')
+                    f'<div class="n {"up" if diff >= 0 else "down"}">{diff * 100:+.0f} vs what you grow now</div>')
         st.html(
             '<div class="fs-stats">'
-            f'<div class="fs-stat" title="0.5 = the same as now; higher is better for your priorities">'
-            f'<div class="l">Overall fit for your priorities</div><div class="v">{row["score_mean"]:.2f}</div>{fit_note}</div>'
+            f'<div class="fs-stat" title="50/100 = the same as now; higher is better for your priorities">'
+            f'<div class="l">Overall fit for your priorities</div><div class="v">{ui.score100(row["score_mean"])}</div>'
+            f'{fit_note}</div>'
             f'<div class="fs-stat"><div class="l">Return over costs</div><div class="v">{ui.money(rng.get("mid"))}'
             f'<span style="font-size:.9rem;font-weight:500">/acre/yr</span></div>'
             f'<div class="n">{ui.money(rng.get("low"))} to {ui.money(rng.get("high"))} with low/high prices; '
@@ -103,8 +106,8 @@ def _featured(r: dict, label: str, name: str, labels: list):
 
 # --- 2. calendar ---------------------------------------------------------------------------------------
 def _calendar(r: dict, label: str, name: str, labels: list):
+    ui.section_heading("Through the year", number=2, sub="What is in the field each month, cover crops included.")
     with ui.section("calendar", sand=False):
-        st.html('<p class="fs-kicker">Rotation calendar</p>')
         _switcher("pick_calendar", labels)
         _header(label, name, r["candidates"][name])
         st.html(calendar_view.calendar_html(r["candidates"][name]["plan"]))
@@ -124,8 +127,8 @@ def _mini(title: str, unit: str, year: int, that: float, typical: float) -> str:
 
 
 def _replay(r: dict, label: str, name: str, labels: list):
+    ui.section_heading("In a hard year", number=3, sub="Replay a past drought or wet year on your field.")
     with ui.section("replay"):
-        st.html('<p class="fs-kicker">Replay a hard year</p>')
         _switcher("pick_replay", labels)
         _header(label, name, r["candidates"][name])
         reasons = {}
@@ -163,9 +166,9 @@ def _data_sources(r: dict):
         ("", "USDA soil survey and crop maps", "Your field's soils, drainage, slope and past crops."),
         ("", "Iowa State University and USDA", "Crop budgets, yields, prices and rotation research."),
     ]
+    ui.section_heading("Where the data comes from", number=4, sub="NASA Earth observations, with USDA and Iowa State.")
     with ui.section("data", sand=False):
-        st.html('<p class="fs-kicker">Where the data comes from</p>'
-                '<div class="fs-data">' + "".join(
+        st.html('<div class="fs-data">' + "".join(
                     f'<div class="{cls}"><b>{html.escape(t)}</b><span>{html.escape(d)}</span></div>'
                     for cls, t, d in cards) + "</div>"
                 '<p class="fs-source">Checked against a weather station and soil-moisture probes near Ames '
@@ -182,10 +185,10 @@ def _details(r: dict, options: dict):
         table = pd.DataFrame({
             "Rotation": order,
             "Shown as": [tag.get(n, "") for n in order],
-            "Overall fit": [rk.loc[n, "score_mean"] for n in order],
+            "Overall fit": [ui.score100(rk.loc[n, "score_mean"]) for n in order],
             "Return $/acre/yr": [inc.get(n, {}).get("mid") for n in order],
         })
-        st.dataframe(table.style.format({"Overall fit": "{:.2f}", "Return $/acre/yr": "{:,.0f}"}, na_rep="n/a"),
+        st.dataframe(table.style.format({"Return $/acre/yr": "{:,.0f}"}, na_rep="n/a"),
                      width="stretch", hide_index=True)
         if r["removed"]:
             st.markdown("**Left out for your farm**")
@@ -212,8 +215,10 @@ def render():
     with st.container(horizontal=True, gap="small"):
         st.button("Edit answers", icon=":material/arrow_back:", type="tertiary", on_click=ui.go("questions"))
         st.button("Change field", icon=":material/map:", type="tertiary", on_click=ui.go("field"))
-    st.header("Your results")
-    st.html('<p class="fs-lead">Rotations for your field, compared with what you grow now.</p>')
+    lat, lon = st.session_state.lat, st.session_state.lon
+    ui.page_header("Step 3 of 3", "Your results",
+                   f"Rotations for your field ({services.location_text(lat, lon)}), compared with what you "
+                   "grow now. Work through the four sections in order.")
 
     _featured(r, label, name, labels)
     _calendar(r, label, name, labels)

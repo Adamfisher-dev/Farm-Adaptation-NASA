@@ -47,12 +47,17 @@ body.fs-banner-hidden .st-key-banner {{ transform: translateY(-110%); }}
            color: #fff; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,0.25); }}
 .fs-tagline {{ font-size: 0.88rem; opacity: 0.9; margin: 0.15rem 0 0; color: #fff; white-space: nowrap; }}
 .st-key-banner button {{
-    background: transparent !important; border: 1px solid rgba(255,255,255,0.0) !important;
-    color: #ffffff !important; font-weight: 600; padding: 0.3rem 0.8rem !important; border-radius: 8px !important;
+    background: transparent !important; border: none !important; box-shadow: none !important;
+    color: #ffffff !important; padding: 0.35rem 0.75rem !important; border-radius: 0 !important;
+    min-height: 0 !important; opacity: 0.82; transition: opacity 0.15s ease;
 }}
-.st-key-banner button:hover {{ background: rgba(255,255,255,0.14) !important; }}
-.st-key-banner button p {{ color: #ffffff !important; }}
-.st-key-nav_home_on button, .st-key-nav_about_on button {{ border-color: rgba(255,255,255,0.65) !important; }}
+.st-key-banner button:hover, .st-key-banner button:focus-visible {{ opacity: 1; background: transparent !important; }}
+.st-key-banner button p {{ color: #ffffff !important; font-size: 1.08rem !important; font-weight: 650; }}
+.st-key-banner button [data-testid="stIconMaterial"] {{ font-size: 1.25rem !important; }}
+/* current page: full brightness and a thin white underline instead of a box */
+.st-key-nav_home_on button, .st-key-nav_about_on button {{ opacity: 1; }}
+.st-key-nav_home_on button p, .st-key-nav_about_on button p {{
+    text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.45rem; }}
 @media (max-width: 640px) {{
     .st-key-banner {{ padding: 0.45rem 0.8rem; }}
     .st-key-banner [data-testid="stImage"] img {{ width: 48px !important; height: 48px !important; }}
@@ -61,6 +66,7 @@ body.fs-banner-hidden .st-key-banner {{ transform: translateY(-110%); }}
     .st-key-banner button {{ padding: 0.25rem 0.55rem !important; }}
 }}
 @media (max-width: 480px) {{        /* phones: icon-only menu so the banner stays on one line */
+    .st-key-nav_home_on button, .st-key-nav_about_on button {{ border-bottom: 2px solid #ffffff !important; }}
     .st-key-banner button p {{ position: absolute !important; width: 1px; height: 1px; overflow: hidden;
                               clip: rect(0 0 0 0); white-space: nowrap; }}   /* still read by screen readers */
     .st-key-banner button {{ padding: 0.35rem 0.5rem !important; min-width: 2.4rem; }}

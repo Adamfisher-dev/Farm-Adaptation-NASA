@@ -107,15 +107,16 @@ def _answers() -> tuple[dict, dict]:
 def render():
     lat, lon = st.session_state.lat, st.session_state.lon
     st.button("Change field", icon=":material/arrow_back:", type="tertiary", on_click=ui.go("field"))
-    st.header("About your farm")
-    st.html(f'<p class="fs-lead">Two short parts, then we compare rotations for your field ({lat:.4f}, {lon:.4f}).</p>')
+    ui.page_header("Step 2 of 3", "About your farm",
+                   f"Two short parts, then we compare rotations for your field "
+                   f"({services.location_text(lat, lon)}).")
     try:
         fld = services.field_lookup(lat, lon)
     except Exception:
         fld = None
 
+    ui.section_heading("Your farm", number=1, sub="What you grow now and what you can do.")
     with ui.section("part1"):
-        st.html('<p class="fs-kicker">Part 1</p><p class="fs-title">Your farm</p>')
         _rotation_picker(fld)
         st.divider()
         c1, c2 = st.columns(2, gap="large")
@@ -137,17 +138,19 @@ def render():
             st.checkbox("A buyer for oats or wheat within reach", value=True, key="q_grain_buyer", **KEEP)
             st.checkbox("Someone can seed a cover crop after harvest", value=True, key="q_cover", **KEEP)
 
+    ui.section_heading("What matters most to you?", number=2, sub="0 = not important, 10 = very important.")
     with ui.section("part2"):
-        st.html('<p class="fs-kicker">Part 2</p><p class="fs-title">What matters most to you?</p>')
-        st.caption("0 = not important, 10 = very important")
         cols = st.columns(2, gap="large")
         for i, (key, (label, why)) in enumerate(PRIORITY_SLIDERS.items()):
             with cols[i % 2]:
                 st.slider(label, 0, 10, 5, key=f"w_{key}", help=why, **KEEP)
 
-    if st.button("Run analysis", icon=":material/play_arrow:", type="primary", width="stretch"):
+    st.html('<div style="height:.6rem"></div>')
+    clicked = st.button("Run analysis", icon=":material/play_arrow:", type="primary", width="stretch")
+    st.html('<p class="fs-source" style="text-align:center;margin-top:.1rem">This can take up to a minute.</p>')
+    if clicked:
         answers, weights = _answers()
-        with st.spinner("Running 40+ years of NASA weather through each rotation - about 15 seconds..."):
+        with st.spinner("Running 40+ years of NASA weather through each rotation - this can take up to a minute..."):
             try:
                 result = services.analyse(lat, lon, services.freeze(answers), services.freeze(weights))
             except Exception as e:

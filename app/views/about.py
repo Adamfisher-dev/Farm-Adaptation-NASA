@@ -2,16 +2,19 @@
 
 import streamlit as st
 
+import ui
+
 
 def render():
-    st.header("About Orbital Acre")
+    ui.page_header("About", "About Orbital Acre",
+                   "Where the numbers come from, how they are used, and what the tool cannot know.")
 
-    st.subheader("The challenge")
+    ui.section_heading("The challenge")
     st.write("Orbital Acre is our answer to the NASA Space Apps Challenge 2026 - *Field Shift: Adapting Farms with NASA Data*. "
              "Our tool helps a farmer explore crop-rotation options that build soil health and cope with "
              "a changing climate, for one field at a time, in Iowa.")
 
-    st.subheader("Data")
+    ui.section_heading("Data")
     st.markdown(
         "| Data | Source | Used for |\n"
         "|---|---|---|\n"
@@ -26,14 +29,14 @@ def render():
         "| Rotation effects | Marsden Farm trial (Davis et al. 2012) and Iowa State Extension | Scores and income |"
     )
 
-    st.subheader("Limits")
+    ui.section_heading("Limits")
     st.markdown(
         "- Weather is a ~50 km average, not your rain gauge; soil and crop maps can be wrong for a given field.\n"
         "- Income uses typical yields, prices and costs - it compares rotations, it does not forecast profit.\n"
         "- Several values are starting points from published research and are marked for expert review."
     )
 
-    st.subheader("Team")
+    ui.section_heading("Team")
     # EDIT: add your team name, members and a contact link here.
     st.info("Team details go here - edit app/views/about.py.")
 

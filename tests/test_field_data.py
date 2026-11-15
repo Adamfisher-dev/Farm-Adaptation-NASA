@@ -25,7 +25,10 @@ def test_field_geometry_box_and_geojson():
         field.field_geometry()
 
 
-def test_soil_area_weighting():
+def test_soil_area_weighting(monkeypatch):
+    # no network in tests: the live hydraulics query (USDA Soil Data Access) is replaced by a failure,
+    # which the profile handles by keeping default drainage
+    monkeypatch.setattr(soil, "sda_hydraulics", lambda *a, **k: (_ for _ in ()).throw(ValueError("offline")))
     fld = field.field_geometry(point=(LAT, LON))
     minx, miny, maxx, maxy = fld.bounds
     mid = (minx + maxx) / 2

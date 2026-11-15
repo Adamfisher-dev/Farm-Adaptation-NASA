@@ -70,21 +70,51 @@ def risk_order(result: dict) -> list:
 
 def four_options(result: dict) -> dict:
     """The four rotations the results screen switches between: {label: rotation name}.
-    Current, Best fit, then the lowest-risk alternatives not already shown (Risk 1, Risk 2, ...)."""
+    Current, Best fit, then the lowest-risk alternatives not already shown (Rotation 2, Rotation 3)."""
     rk = result["ranking"]
     current = next((n for n in rk.index if result["candidates"][n].get("tier") == "current"), rk.index[0])
     best = rk.index[0]
     opts = {"Current": current}
     if best != current:
         opts["Best fit"] = best
-    i = 1
+    i = 2
     for name in risk_order(result):
         if len(opts) == 4:
             break
         if name not in opts.values():
-            opts[f"Risk {i}"] = name
+            opts[f"Rotation {i}"] = name
             i += 1
     return opts
+
+
+def score100(x) -> str:
+    """A 0-1 score shown out of 100, e.g. 0.59 -> '59/100'."""
+    return "n/a" if x is None or pd.isna(x) else f"{round(float(x) * 100):d}/100"
+
+
+def page_header(kicker: str, title: str, lead: str = "", hero: bool = False):
+    """Page heading: small step label, large title with a green accent, one-line lead."""
+    st.html(f'<div class="fs-head{" hero" if hero else ""}"><p class="k">{kicker}</p><h1>{title}</h1>'
+            f'<span class="bar"></span>' + (f'<p class="lead">{lead}</p>' if lead else "") + "</div>")
+
+
+def section_heading(title: str, number: int | None = None, sub: str = ""):
+    """Section heading outside the panels; numbered on the results screen to show the order."""
+    num = f'<span class="n">{number}</span>' if number is not None else ""
+    st.html(f'<div class="fs-h2">{num}<div><h2>{title}</h2>' + (f'<p>{sub}</p>' if sub else "") + "</div></div>")
+
+
+def donut_html(parts: list, size: int = 150) -> str:
+    """Ring chart drawn with CSS (no clipping): parts = [(label, share 0-1, colour)]."""
+    total = sum(p[1] for p in parts) or 1.0
+    stops, acc = [], 0.0
+    for _, share, colour in parts:
+        start, acc = acc, acc + share / total * 100
+        stops.append(f"{colour} {start:.2f}% {acc:.2f}%")
+    legend = "".join(f'<span><i style="background:{c}"></i>{lab} <b>{s / total:.0%}</b></span>' for lab, s, c in parts)
+    return (f'<div class="fs-donut"><div class="ring" style="width:{size}px;height:{size}px;'
+            f'background:conic-gradient({", ".join(stops)})"><div class="hole"></div></div>'
+            f'<div class="fs-legend col">{legend}</div></div>')
 
 
 def go(step: str):
@@ -189,6 +219,45 @@ h2 {{ font-size: 1.75rem !important; }}
 .fs-data b {{ display: block; font-size: 0.95rem; }}
 .fs-data span {{ font-size: 0.84rem; opacity: 0.8; }}
 .fs-data .nasa {{ border-left: 4px solid {GREEN}; }}
+
+/* page headings */
+.fs-head {{ margin: 0 0 1.1rem; }}
+.fs-head .k {{ font-size: 0.8rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+              color: {SOIL}; margin: 0 0 0.3rem; }}
+.fs-head h1 {{ font-size: 2.3rem; font-weight: 800; line-height: 1.12; letter-spacing: -0.02em; margin: 0;
+              padding: 0; color: {INK}; }}
+.fs-head .bar {{ display: block; width: 3.2rem; height: 4px; border-radius: 4px; background: {GREEN};
+                margin: 0.7rem 0 0.6rem; }}
+.fs-head .lead {{ font-size: 1.08rem; opacity: 0.8; margin: 0; max-width: 46rem; }}
+.fs-head.hero {{ background: linear-gradient(135deg, #f3ecdd 0%, #eadfc6 100%); border: 1px solid {SAND_LINE};
+                border-radius: 16px; padding: 1.6rem 1.8rem 1.5rem; }}
+.fs-head.hero h1 {{ font-size: 2.7rem; }}
+@media (max-width: 640px) {{
+    .fs-head h1 {{ font-size: 1.85rem; }}
+    .fs-head.hero {{ padding: 1.1rem 1.1rem 1.05rem; }}
+    .fs-head.hero h1 {{ font-size: 2rem; }}
+}}
+.fs-h2 {{ display: flex; align-items: center; gap: 0.75rem; margin: 1.6rem 0 0.6rem; }}
+.fs-h2 .n {{ flex: 0 0 auto; width: 2.1rem; height: 2.1rem; border-radius: 50%; background: {GREEN}; color: #fff;
+            display: flex; align-items: center; justify-content: center; font-weight: 750; font-size: 1.05rem; }}
+.fs-h2 h2 {{ font-size: 1.55rem !important; font-weight: 750; margin: 0; padding: 0; line-height: 1.2; }}
+.fs-h2 p {{ margin: 0.1rem 0 0; font-size: 0.92rem; opacity: 0.75; }}
+@media (max-width: 640px) {{ .fs-h2 h2 {{ font-size: 1.3rem !important; }} }}
+
+/* ring chart (drainage) */
+.fs-donut {{ display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap; }}
+.fs-donut .ring {{ position: relative; border-radius: 50%; flex: 0 0 auto; }}
+.fs-donut .hole {{ position: absolute; inset: 24%; border-radius: 50%; background: {SAND}; }}
+.fs-legend.col {{ flex-direction: column; gap: 0.35rem; }}
+
+/* location card next to the map */
+.fs-loc .place {{ font-size: 1.45rem; font-weight: 750; line-height: 1.2; margin: 0.1rem 0 0.15rem; color: {INK}; }}
+.fs-loc .county {{ font-size: 0.95rem; opacity: 0.8; margin: 0 0 0.9rem; }}
+.fs-loc .row {{ display: flex; justify-content: space-between; gap: 0.8rem; padding: 0.5rem 0;
+               border-top: 1px solid {SAND_LINE}; font-size: 0.92rem; }}
+.fs-loc .row span:first-child {{ opacity: 0.75; }}
+.fs-loc .row span:last-child {{ font-weight: 650; text-align: right; }}
+.fs-loc .hint {{ font-size: 0.82rem; opacity: 0.7; margin: 0.8rem 0 0; }}
 
 /* simple horizontal bar rows (soil types, hard-year replay) */
 .fs-hb {{ display: grid; grid-template-columns: minmax(6rem, 11rem) 1fr 3.6rem; gap: 0.35rem 0.7rem;

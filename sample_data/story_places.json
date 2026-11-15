@@ -1,0 +1,95 @@
+{
+ "source": "US Census Bureau TIGERweb, Places_CouSub_ConCity_SubMCD/MapServer/4 (Incorporated Places), Iowa, Story County area; internal points; fetched 2026-11-15",
+ "places": [
+  {
+   "name": "Ames",
+   "geoid": "1901855",
+   "lat": 42.02573,
+   "lon": -93.62249
+  },
+  {
+   "name": "Cambridge",
+   "geoid": "1910225",
+   "lat": 41.90168,
+   "lon": -93.53656
+  },
+  {
+   "name": "Collins",
+   "geoid": "1915195",
+   "lat": 41.90238,
+   "lon": -93.30807
+  },
+  {
+   "name": "Colo",
+   "geoid": "1915240",
+   "lat": 42.01453,
+   "lon": -93.31859
+  },
+  {
+   "name": "Gilbert",
+   "geoid": "1930630",
+   "lat": 42.1062,
+   "lon": -93.64605
+  },
+  {
+   "name": "Huxley",
+   "geoid": "1937920",
+   "lat": 41.89438,
+   "lon": -93.59131
+  },
+  {
+   "name": "Kelley",
+   "geoid": "1940395",
+   "lat": 41.95087,
+   "lon": -93.66496
+  },
+  {
+   "name": "Maxwell",
+   "geoid": "1950520",
+   "lat": 41.89143,
+   "lon": -93.39606
+  },
+  {
+   "name": "McCallsburg",
+   "geoid": "1947775",
+   "lat": 42.16488,
+   "lon": -93.39078
+  },
+  {
+   "name": "Nevada",
+   "geoid": "1955695",
+   "lat": 42.01808,
+   "lon": -93.4693
+  },
+  {
+   "name": "Roland",
+   "geoid": "1968475",
+   "lat": 42.16585,
+   "lon": -93.50304
+  },
+  {
+   "name": "Sheldahl",
+   "geoid": "1972345",
+   "lat": 41.86452,
+   "lon": -93.69675
+  },
+  {
+   "name": "Slater",
+   "geoid": "1973515",
+   "lat": 41.88074,
+   "lon": -93.69118
+  },
+  {
+   "name": "Story City",
+   "geoid": "1975675",
+   "lat": 42.18574,
+   "lon": -93.58689
+  },
+  {
+   "name": "Zearing",
+   "geoid": "1987555",
+   "lat": 42.15893,
+   "lon": -93.29718
+  }
+ ]
+}

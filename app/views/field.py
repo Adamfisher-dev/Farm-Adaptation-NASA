@@ -5,7 +5,6 @@ The map is drawn once and keeps its view: the selected field is a separate layer
 county; the farmer controls the zoom.
 """
 
-import altair as alt
 import folium
 import pandas as pd
 import streamlit as st
@@ -16,22 +15,12 @@ import ui
 from fieldshift import config
 from fieldshift.data.field import field_geometry
 
-EXAMPLES = {"flat_tiled": "Flat, tile-drained", "sloping": "Sloping", "light_soil": "Lighter soil"}
 MAP_ZOOM = 14
 SLOPE_BANDS = [(0, 2, "Nearly level"), (2, 5, "Gentle"), (5, 9, "Moderate"), (9, 15, "Steep")]
 DRAINAGE_COLOURS = {"Very poorly drained": "#3f5f6b", "Poorly drained": "#5b7d8a",
                     "Somewhat poorly drained": "#8fa89c", "Moderately well drained": "#c9b48a",
                     "Well drained": ui.SOIL, "Somewhat excessively drained": "#c49a55",
                     "Excessively drained": ui.WHEAT}
-
-
-def _pick_example():
-    name = st.session_state.get("example_pick")
-    if name:
-        st.session_state.lat, st.session_state.lon = config.EXAMPLE_POINTS[name]
-        st.session_state.map_center = list(config.EXAMPLE_POINTS[name])      # pan the map there
-        st.session_state.result = None
-        st.session_state.click_warning = False
 
 
 def _map():
@@ -47,10 +36,10 @@ def _map():
     minx, miny, maxx, maxy = field_geometry(point=(lat, lon)).bounds
     folium.Rectangle(bounds=[[miny, minx], [maxy, maxx]], color="#f2c94c", weight=3, fill=True,
                      fill_opacity=0.12, tooltip="The field analysed (about 400 m x 400 m)").add_to(fg)
-    data = st_folium(m, height=360, use_container_width=True, returned_objects=["last_clicked"],
+    data = st_folium(m, height=430, use_container_width=True, returned_objects=["last_clicked"],
                      feature_group_to_add=fg, key="field_map")
     # no center/zoom arguments: st_folium re-applies those on every rerun (resetting the farmer's zoom).
-    # The map's start view only changes when an example field is picked (map_center), on purpose.
+    # map_center is only the first view; after that the farmer's own pan and zoom are kept.
     return (data or {}).get("last_clicked")
 
 
@@ -75,14 +64,9 @@ def _soil_tab(fld: dict):
                                  fmt=lambda v: f"{v:.0f}%"))
     if len(drain):
         with c2:
-            pie = alt.Chart(drain).mark_arc(innerRadius=42, outerRadius=78).encode(
-                theta="Share:Q",
-                color=alt.Color("Drainage:N", title=None, scale=alt.Scale(
-                    domain=list(drain["Drainage"]), range=[DRAINAGE_COLOURS.get(d, ui.OTHER_COLOUR) for d in drain["Drainage"]]),
-                    legend=alt.Legend(orient="bottom", columns=1)),
-                tooltip=["Drainage", alt.Tooltip("Share:Q", format=".0%")])
             st.markdown("**Drainage**")
-            st.altair_chart(ui.chart_config(pie.properties(height=230)), width="stretch")
+            st.html(ui.donut_html([(r.Drainage, r.Share, DRAINAGE_COLOURS.get(r.Drainage, ui.OTHER_COLOUR))
+                                   for r in drain.itertuples()], size=140))
     st.html('<p class="fs-source">USDA NRCS soil survey (SSURGO), looked up for this field.</p>')
 
 
@@ -132,14 +116,32 @@ def _crops_tab(fld: dict):
     st.html('<p class="fs-source">USDA NASS Cropland Data Layer, 2008-2025 (mapped from Landsat and Sentinel-2 images).</p>')
 
 
-def render():
-    st.header("Choose your field")
-    st.html('<p class="fs-lead">Click your field on the map, anywhere in Story County, Iowa.</p>')
+def _location_card(lat: float, lon: float):
+    ha = services.field_area_ha(lat, lon)
+    ns, ew = ("N" if lat >= 0 else "S"), ("E" if lon >= 0 else "W")
+    with ui.section("location"):
+        st.html(f'<div class="fs-loc"><p class="fs-kicker">Selected field</p>'
+                f'<p class="place">{services.location_text(lat, lon)}</p>'
+                f'<p class="county">Story County, Iowa</p>'
+                f'<div class="row"><span>Latitude</span><span>{abs(lat):.4f}&deg; {ns}</span></div>'
+                f'<div class="row"><span>Longitude</span><span>{abs(lon):.4f}&deg; {ew}</span></div>'
+                f'<div class="row"><span>Area analysed</span><span>{ha:.0f} ha ({ha * 2.471:.0f} acres)</span></div>'
+                f'<p class="hint">Click another spot on the map to move the field. Nearest town: US Census Bureau.</p>'
+                f'</div>')
 
-    with ui.section("map", sand=False):
-        click = _map()
-        st.html('<p class="fs-source">Satellite imagery: Esri World Imagery · County outline: US Census Bureau '
-                '(TIGER) · The yellow square is the area analysed (about 400 m across).</p>')
+
+def render():
+    ui.page_header("Welcome!", "Find the best crop rotation for your farm",
+                   "Pick your field, answer two short questions and compare crop rotations over 40 years "
+                   "of NASA weather.", hero=True)
+
+    ui.section_heading("Pick your field", sub="Click it on the map - anywhere in Story County, Iowa.")
+    map_col, info_col = st.columns([1, 1], gap="medium")
+    with map_col:
+        with ui.section("map", sand=False):
+            click = _map()
+            st.html('<p class="fs-source">Satellite imagery: Esri World Imagery · County outline: US Census '
+                    'Bureau. The yellow square is the area analysed.</p>')
     if click:
         new = (round(click["lat"], 5), round(click["lng"], 5))
         if new != st.session_state.get("handled_click"):         # act on each click once
@@ -150,19 +152,17 @@ def render():
                 st.session_state.lat, st.session_state.lon = new
                 st.session_state.result = None
                 st.session_state.click_warning = False
-                st.session_state.reset_example = True
                 st.rerun()
-    if st.session_state.get("click_warning"):
-        st.warning("That spot is outside Story County. Please pick a field inside the white outline.")
-
-    if st.session_state.pop("reset_example", False):           # before the widget is drawn
-        st.session_state.example_pick = None
-    st.pills("Or try an example field", list(EXAMPLES), format_func=EXAMPLES.get,
-             key="example_pick", on_change=_pick_example)
 
     lat, lon = st.session_state.lat, st.session_state.lon
+    with info_col:
+        _location_card(lat, lon)
+        if st.session_state.get("click_warning"):
+            st.warning("That spot is outside Story County. Please pick a field inside the white outline.")
+
+    ui.section_heading("What we know about this field",
+                       sub="From the USDA soil survey, NASA elevation data and USDA crop maps.")
     with ui.section("field"):
-        st.html(f'<p class="fs-kicker">Your field</p><p class="fs-sub">{lat:.4f}, {lon:.4f}</p>')
         try:
             with st.spinner("Looking up the soil survey, slope and crop maps..."):
                 fld = services.field_lookup(lat, lon)

@@ -138,24 +138,47 @@ inner join muaggatt ma on ma.mukey = g.id
 group by g.id, mu.muname, ma.aws0100wta, ma.drclassdcd, ma.hydgrpdcd, ma.slopegradwta"""
 
 
-def sda_field_mapunits(field_geom, timeout=60) -> pd.DataFrame:
-    """SSURGO map units inside the field from Soil Data Access, one row per map unit."""
+SDA_TIMEOUT_S = 25              # one request; the service normally answers in 1-2 s
+SDA_RETRY_AFTER_S = 600         # after a failure, skip the service for 10 minutes (fallback at once)
+_SDA_CACHE: dict = {}           # field polygon (WKT) -> map-unit table, for this process
+_SDA_DOWN_SINCE: list = [None]  # time of the last failure
+
+
+def sda_field_mapunits(field_geom, timeout=SDA_TIMEOUT_S) -> pd.DataFrame:
+    """SSURGO map units inside the field from Soil Data Access, one row per map unit.
+
+    Results are kept per field for the life of the process (the app looks a field up on the map
+    screen and again in the analysis). If the service fails, it is not tried again for
+    SDA_RETRY_AFTER_S, so callers fall back to typical soil straight away instead of waiting."""
+    import time
+
     import requests
     geom = field_geom if field_geom.geom_type == "Polygon" else field_geom.convex_hull
+    key = geom.wkt
+    if key in _SDA_CACHE:
+        return _SDA_CACHE[key].copy()
+    down = _SDA_DOWN_SINCE[0]
+    if down is not None and time.time() - down < SDA_RETRY_AFTER_S:
+        raise ValueError("USDA Soil Data Access was not responding a few minutes ago")
     q = SDA_FIELD_QUERY.format(wkt=geom.wkt)
     try:
         r = requests.post(SDA_URL, json={"query": q, "format": "JSON+COLUMNNAME"}, timeout=timeout)
     except requests.RequestException as err:      # offline / service down -> caller falls back
+        _SDA_DOWN_SINCE[0] = time.time()
         raise ValueError(f"USDA Soil Data Access not reachable ({type(err).__name__})") from err
     if r.status_code != 200:
+        if r.status_code >= 500:
+            _SDA_DOWN_SINCE[0] = time.time()
         raise ValueError(f"Soil Data Access error {r.status_code}: {r.text[:200]}")
+    _SDA_DOWN_SINCE[0] = None
     table = (r.json() or {}).get("Table") or []
     if len(table) < 2:
         raise ValueError("No SSURGO soil map units found for this field.")
     df = pd.DataFrame(table[1:], columns=table[0])
     for c in ("area_m2", "aws0100wta", "slopegradwta"):
         df[c] = pd.to_numeric(df[c], errors="coerce")
-    return df
+    _SDA_CACHE[key] = df
+    return df.copy()
 
 
 def field_soil_profile_sda(field_geom, mapunits: pd.DataFrame | None = None) -> SoilProfile:
@@ -181,21 +204,39 @@ FROM muaggatt ma JOIN component c ON c.mukey = ma.mukey JOIN chorizon h ON h.cok
 WHERE ma.mukey IN ({keys}) AND c.majcompflag = 'Yes'"""
 
 
-def sda_hydraulics(mukey_fracs: pd.Series, timeout=60) -> dict:
+_HYD_CACHE: dict = {}           # map-unit keys -> horizon table, for this process
+
+
+def sda_hydraulics(mukey_fracs: pd.Series, timeout=SDA_TIMEOUT_S) -> dict:
     """Field hydraulics from SSURGO, weighted by map-unit area and major-component percentage:
         ksat_mm_day   most restrictive (lowest) Ksat in 0-150 cm, geometric mean across the field
         drainable_mm  sum over 0-100 cm of (saturated - 1/3-bar water content) x thickness
         spring_wt_shallow_share  share of the field whose April-June water table is < 100 cm deep
     """
+    import time
+
     import numpy as np
     import requests
     fr = mukey_fracs[mukey_fracs > 0]
     keys = ",".join(f"'{k}'" for k in fr.index.astype(str))
-    r = requests.post(SDA_URL, json={"query": SDA_HYDRAULICS_QUERY.format(keys=keys),
-                                     "format": "JSON+COLUMNNAME"}, timeout=timeout)
-    if r.status_code != 200:
-        raise ValueError(f"Soil Data Access error {r.status_code}")
-    table = (r.json() or {}).get("Table") or []
+    if keys in _HYD_CACHE:                         # same map units as before: no second request
+        table = _HYD_CACHE[keys]
+    else:
+        down = _SDA_DOWN_SINCE[0]
+        if down is not None and time.time() - down < SDA_RETRY_AFTER_S:
+            raise ValueError("USDA Soil Data Access was not responding a few minutes ago")
+        try:
+            r = requests.post(SDA_URL, json={"query": SDA_HYDRAULICS_QUERY.format(keys=keys),
+                                             "format": "JSON+COLUMNNAME"}, timeout=timeout)
+        except requests.RequestException as err:
+            _SDA_DOWN_SINCE[0] = time.time()
+            raise ValueError(f"USDA Soil Data Access not reachable ({type(err).__name__})") from err
+        if r.status_code != 200:
+            if r.status_code >= 500:
+                _SDA_DOWN_SINCE[0] = time.time()
+            raise ValueError(f"Soil Data Access error {r.status_code}")
+        table = (r.json() or {}).get("Table") or []
+        _HYD_CACHE[keys] = table
     if len(table) < 2:
         raise ValueError("No horizon data for these map units")
     h = pd.DataFrame(table[1:], columns=table[0])

@@ -9,7 +9,7 @@ import streamlit as st
 
 from fieldshift import config, pipeline
 
-N_BOOT = 300          # resamples per analysis (~10 s); the pipeline default is 1000
+N_BOOT = 1000         # resamples per analysis (the pipeline's full setting; up to about a minute)
 CALENDAR_START_YEAR = 2021   # any run of years works; the calendar shows one rotation cycle
 
 
@@ -54,3 +54,35 @@ def crop_days(plan_frozen: tuple):
     plan = [list(year) for year in plan_frozen]
     return crops_mod.daily_crop_table(plan, CALENDAR_START_YEAR, CALENDAR_START_YEAR + len(plan) - 1, phase=0)
 
+
+
+# --- where the field is ------------------------------------------------------------------------------
+PLACES_FILE = config.ROOT / "sample_data" / "story_places.json"   # US Census incorporated places
+
+
+@st.cache_resource(show_spinner=False)
+def _places() -> list:
+    return json.loads(PLACES_FILE.read_text(encoding="utf-8"))["places"]
+
+
+def location_text(lat: float, lon: float) -> str:
+    """'In Ames' / '3.4 km NE of Nevada' from the nearest Story County town (US Census places)."""
+    import math
+    best = None
+    for p in _places():
+        dy = (p["lat"] - lat) * 110.57
+        dx = (p["lon"] - lon) * 111.32 * math.cos(math.radians(lat))
+        d = math.hypot(dx, dy)
+        if best is None or d < best[0]:
+            best = (d, p["name"], -dx, -dy)            # vector from the town to the field
+    d, name, dx, dy = best
+    if d < 1.5:
+        return f"In {name}"
+    points = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+    bearing = (math.degrees(math.atan2(dx, dy)) + 360) % 360
+    return f"{d:.1f} km {points[int((bearing + 22.5) // 45) % 8]} of {name}"
+
+
+def field_area_ha(lat: float, lon: float) -> float:
+    from fieldshift.data.field import _area_ha, field_geometry
+    return _area_ha(field_geometry(point=(lat, lon)))

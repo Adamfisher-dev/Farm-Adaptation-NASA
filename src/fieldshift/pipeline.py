@@ -395,6 +395,19 @@ def validate(out: dict, smap_path=None, ndvi_path=None, smap_max_km: float = 15.
         first, last = (min(cdl_years), max(cdl_years)) if cdl_years else (config.WATER_END_YEAR - 9, config.WATER_END_YEAR)
     years = list(range(max(first, config.WATER_START_YEAR), min(last, config.WATER_END_YEAR) + 1))
     hist = {str(y): c for y, c in out["field"].get("crop_history", {}).items()}
+
+    def _simulable(crop):                # e.g. 'not_cropland' (road, farmyard) cannot be run by the model
+        try:
+            val.actual_crop_plan({"2000": crop})
+            return True
+        except ValueError:
+            return False
+    unusable = sorted(y for y, c in hist.items() if not _simulable(c))
+    for y in unusable:                   # treated like a missing map year: filled from the rotation cycle
+        del hist[y]
+    if unusable:
+        notes.append(f"The crop map shows non-crop land in {', '.join(unusable)} (e.g. a road or farmyard in "
+                     "the square); those years use the rotation instead.")
     guess = out["field"].get("existing_rotation_guess")
     cycle = len(guess) if guess else 2
     filled = []
@@ -466,6 +479,15 @@ def validate(out: dict, smap_path=None, ndvi_path=None, smap_max_km: float = 15.
     return {"available": True, "point": pid, "distance_km": round(km, 1), "years": [years[0], years[-1]],
             "notes": notes, "comparisons": comparisons, "ndvi": ndvi_res, "weather": weather,
             "sentences": sentences}
+
+
+def _safe_validate(out: dict) -> dict:
+    """The model checks are extra evidence: if they fail for any reason, the farmer still gets results."""
+    try:
+        return validate(out)
+    except Exception as err:               # noqa: BLE001 - reported in the notes, never fatal
+        return {"available": False, "notes": [f"Model check skipped for this field ({err})."],
+                "comparisons": {}, "ndvi": None, "weather": None, "sentences": []}
 
 
 # --- Everything for one field, in the playbook order (6.1) ---------------------------------------------
@@ -555,7 +577,7 @@ def run_analysis(lat: float, lon: float, answers: dict | None = None, weights: d
         "stressed_years": robust["stressed_years"],
         "robustness": robust.get("robustness"),
         "replay": replay(out, year),
-        "validation": validate(out),
+        "validation": _safe_validate(out),
         "snapshot": out["snapshot"],
         "trends": out["trends"],
         "detrend": out["detrend"],
