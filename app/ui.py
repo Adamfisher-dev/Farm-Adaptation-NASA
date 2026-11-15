@@ -92,6 +92,26 @@ def score100(x) -> str:
     return "n/a" if x is None or pd.isna(x) else f"{round(float(x) * 100):d}/100"
 
 
+_ICONS = {   # Material Design icon paths (24 x 24)
+    "pin": "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5"
+           "s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z",
+    "list": "M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 "
+            "2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2"
+            "h10v2zm0-4H7V7h10v2z",
+    "chart": "M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z",
+}
+
+
+def hero(title: str, steps: list[tuple[str, str, str]]):
+    """Landing heading: one big line, then the steps as small icon cards (icon key, title, one line)."""
+    arrow = '<span class="arr" aria-hidden="true">&rarr;</span>'
+    cards = arrow.join(
+        f'<div class="step"><span class="ic"><i class="fs-icon {icon}"></i></span>'
+        f'<div><p class="t"><span class="n">{i}</span>{t}</p><p class="d">{d}</p></div></div>'
+        for i, (icon, t, d) in enumerate(steps, start=1))
+    st.html(f'<div class="fs-hero"><h1>{title}</h1><div class="steps">{cards}</div></div>')
+
+
 def page_header(kicker: str, title: str, lead: str = "", hero: bool = False):
     """Page heading: small step label, large title with a green accent, one-line lead."""
     st.html(f'<div class="fs-head{" hero" if hero else ""}"><p class="k">{kicker}</p><h1>{title}</h1>'
@@ -237,6 +257,26 @@ h2 {{ font-size: 1.75rem !important; }}
     .fs-head.hero {{ padding: 1.1rem 1.1rem 1.05rem; }}
     .fs-head.hero h1 {{ font-size: 2rem; }}
 }}
+.fs-hero {{ background: linear-gradient(135deg, #f3ecdd 0%, #eadfc6 100%); border: 1px solid {SAND_LINE};
+            border-radius: 18px; padding: 2rem 2rem 1.7rem; margin: 0 0 1.2rem; }}
+.fs-hero h1 {{ font-size: 2.9rem; font-weight: 800; line-height: 1.08; letter-spacing: -0.02em; margin: 0 0 1.5rem;
+              padding: 0; color: {INK}; }}
+.fs-hero .steps {{ display: flex; align-items: stretch; gap: 0.6rem; }}
+.fs-hero .step {{ flex: 1 1 0; display: flex; align-items: center; gap: 0.85rem; background: #fff;
+                  border: 1px solid {SAND_LINE}; border-radius: 14px; padding: 0.9rem 1rem; }}
+.fs-hero .ic {{ flex: 0 0 auto; width: 2.9rem; height: 2.9rem; border-radius: 12px; background: {GREEN};
+                display: flex; align-items: center; justify-content: center; }}
+.fs-hero .ic {{ color: #fff; }}
+.fs-hero .t {{ font-size: 1.05rem; font-weight: 750; margin: 0; color: {INK}; line-height: 1.25; }}
+.fs-hero .t .n {{ color: {SOIL}; margin-right: 0.35rem; }}
+.fs-hero .d {{ font-size: 0.88rem; opacity: 0.75; margin: 0.15rem 0 0; line-height: 1.3; }}
+.fs-hero .arr {{ align-self: center; color: {SOIL}; font-size: 1.4rem; font-weight: 700; opacity: 0.7; }}
+@media (max-width: 760px) {{
+    .fs-hero {{ padding: 1.3rem 1.1rem 1.2rem; }}
+    .fs-hero h1 {{ font-size: 2.05rem; margin-bottom: 1.1rem; }}
+    .fs-hero .steps {{ flex-direction: column; gap: 0.5rem; }}
+    .fs-hero .arr {{ display: none; }}
+}}
 .fs-h2 {{ display: flex; align-items: center; gap: 0.75rem; margin: 1.6rem 0 0.6rem; }}
 .fs-h2 .n {{ flex: 0 0 auto; width: 2.1rem; height: 2.1rem; border-radius: 50%; background: {GREEN}; color: #fff;
             display: flex; align-items: center; justify-content: center; font-weight: 750; font-size: 1.05rem; }}
@@ -300,8 +340,19 @@ h2 {{ font-size: 1.75rem !important; }}
 """
 
 
+def _icon_css() -> str:
+    """Icons as CSS masks (st.html strips inline SVG): <i class="fs-icon pin"></i>, coloured by `color`."""
+    from urllib.parse import quote
+    rules = [".fs-icon { display: inline-block; width: 1.6rem; height: 1.6rem; background: currentColor; "
+             "-webkit-mask: var(--m) center / contain no-repeat; mask: var(--m) center / contain no-repeat; }"]
+    for name, path in _ICONS.items():
+        svg = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="{path}"/></svg>'
+        rules.append(f'.fs-icon.{name} {{ --m: url("data:image/svg+xml,{quote(svg)}"); }}')
+    return "<style>" + chr(10).join(rules) + "</style>"
+
+
 def inject_css():
-    st.html(PAGE_CSS)
+    st.html(PAGE_CSS + _icon_css())
 
 
 def chart_config(chart):

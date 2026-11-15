@@ -3,7 +3,7 @@
 It slides away when the page is scrolled down and comes back when scrolling up.
 
 To change the branding, edit the settings below:
-  - LOGO:    the banner logo in app/assets/ - a white silhouette on a transparent background, drawn
+  - LOGO:    the banner logo in app/assets/ - a cream line logo on a transparent background, drawn
              straight on the green (logo_colour.png is the earlier colour logo, kept for reference).
   - ICON:    the browser-tab icon (dark version, so it shows on light tabs).
   - NAME:    the project name shown next to the logo.
@@ -34,9 +34,9 @@ BANNER_CSS = f"""
 }}
 body.fs-banner-hidden .st-key-banner {{ transform: translateY(-110%); }}
 .st-key-banner p, .st-key-banner span {{ color: #ffffff !important; }}
-/* logo: white silhouette straight on the green, with a soft shadow for depth */
+/* logo: cream line logo straight on the green (wider than tall), with a soft shadow for depth */
 .st-key-banner [data-testid="stImage"] img {{
-    display: block; width: 72px !important; height: 72px !important; object-fit: contain;
+    display: block; width: 96px !important; height: 66px !important; object-fit: contain;
     filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35));
 }}
 /* the image's wrappers keep the width given to st.image; let them shrink with the logo on phones */
@@ -60,7 +60,7 @@ body.fs-banner-hidden .st-key-banner {{ transform: translateY(-110%); }}
     text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.45rem; }}
 @media (max-width: 640px) {{
     .st-key-banner {{ padding: 0.45rem 0.8rem; }}
-    .st-key-banner [data-testid="stImage"] img {{ width: 48px !important; height: 48px !important; }}
+    .st-key-banner [data-testid="stImage"] img {{ width: 64px !important; height: 44px !important; }}
     .fs-name {{ font-size: 1.3rem; }}
     .fs-tagline {{ display: none; }}
     .st-key-banner button {{ padding: 0.25rem 0.55rem !important; }}
@@ -112,7 +112,7 @@ def render() -> None:
     with st.container(key="banner", horizontal=True, vertical_alignment="center",
                       horizontal_alignment="distribute", wrap=False):
         with st.container(horizontal=True, vertical_alignment="center", gap="small", width="content"):
-            st.image(str(logo_path()), width=72)
+            st.image(str(logo_path()), width=96)
             st.html(f'<div><p class="fs-name">{NAME}</p>'
                     + (f'<p class="fs-tagline">{TAGLINE}</p>' if TAGLINE else "") + "</div>")
         with st.container(horizontal=True, vertical_alignment="center", gap="small", width="content"):

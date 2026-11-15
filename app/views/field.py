@@ -131,9 +131,11 @@ def _location_card(lat: float, lon: float):
 
 
 def render():
-    ui.page_header("Welcome!", "Find the best crop rotation for your farm",
-                   "Pick your field, answer two short questions and compare crop rotations over 40 years "
-                   "of NASA weather.", hero=True)
+    ui.hero("Find the best crop rotation for your farm", [
+        ("pin", "Pick your field", "Click it on the map"),
+        ("list", "Tell us about your farm", "A few quick questions"),
+        ("chart", "Get your best rotation", "40 years of NASA weather"),
+    ])
 
     ui.section_heading("Pick your field", sub="Click it on the map - anywhere in Story County, Iowa.")
     map_col, info_col = st.columns([1, 1], gap="medium")
