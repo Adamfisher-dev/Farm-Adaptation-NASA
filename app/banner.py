@@ -3,8 +3,9 @@
 It slides away when the page is scrolled down and comes back when scrolling up.
 
 To change the branding, edit the settings below:
-  - LOGO:    put your logo in app/assets/ (PNG, JPG or SVG) and name it here.
-             Until then the placeholder app/assets/logo_placeholder.svg is shown.
+  - LOGO:    the banner logo in app/assets/ - a white silhouette on a transparent background, drawn
+             straight on the green (logo_colour.png is the earlier colour logo, kept for reference).
+  - ICON:    the browser-tab icon (dark version, so it shows on light tabs).
   - NAME:    the project name shown next to the logo.
   - TAGLINE: one short line under the name (hidden on phones), or "" for none.
 """
@@ -18,6 +19,7 @@ import ui
 ASSETS = Path(__file__).resolve().parent / "assets"
 LOGO = "logo.png"                                   # your logo file in app/assets/
 LOGO_PLACEHOLDER = "logo_placeholder.svg"
+ICON = "logo_icon.png"                              # browser-tab icon
 NAME = "Orbital Acre"
 TAGLINE = "Adapting Iowa crop rotations with NASA data"
 
@@ -32,11 +34,15 @@ BANNER_CSS = f"""
 }}
 body.fs-banner-hidden .st-key-banner {{ transform: translateY(-110%); }}
 .st-key-banner p, .st-key-banner span {{ color: #ffffff !important; }}
-/* logo: black line art, so it sits on a white rounded tile to stand out on the green */
+/* logo: white silhouette straight on the green, with a soft shadow for depth */
 .st-key-banner [data-testid="stImage"] img {{
     display: block; width: 72px !important; height: 72px !important; object-fit: contain;
-    background: #ffffff; border-radius: 14px; padding: 3px; box-shadow: 0 2px 8px rgba(0,0,0,0.28);
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35));
 }}
+/* the image's wrappers keep the width given to st.image; let them shrink with the logo on phones */
+.st-key-banner [data-testid="stFullScreenFrame"],
+.st-key-banner [data-testid="stElementContainer"]:has([data-testid="stImage"]) {{
+    width: fit-content !important; flex: 0 0 auto !important; }}
 .fs-name {{ font-size: 1.8rem; font-weight: 800; letter-spacing: 0.01em; line-height: 1.05; margin: 0;
            color: #fff; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,0.25); }}
 .fs-tagline {{ font-size: 0.88rem; opacity: 0.9; margin: 0.15rem 0 0; color: #fff; white-space: nowrap; }}
@@ -49,8 +55,7 @@ body.fs-banner-hidden .st-key-banner {{ transform: translateY(-110%); }}
 .st-key-nav_home_on button, .st-key-nav_about_on button {{ border-color: rgba(255,255,255,0.65) !important; }}
 @media (max-width: 640px) {{
     .st-key-banner {{ padding: 0.45rem 0.8rem; }}
-    .st-key-banner [data-testid="stImage"] img {{ width: 48px !important; height: 48px !important;
-                                                  border-radius: 11px; }}
+    .st-key-banner [data-testid="stImage"] img {{ width: 48px !important; height: 48px !important; }}
     .fs-name {{ font-size: 1.3rem; }}
     .fs-tagline {{ display: none; }}
     .st-key-banner button {{ padding: 0.25rem 0.55rem !important; }}
@@ -88,6 +93,11 @@ SCROLL_JS = """
 def logo_path() -> Path:
     custom = ASSETS / LOGO
     return custom if custom.exists() else ASSETS / LOGO_PLACEHOLDER
+
+
+def icon_path() -> Path:
+    icon = ASSETS / ICON
+    return icon if icon.exists() else logo_path()
 
 
 def render() -> None:
