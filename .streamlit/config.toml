@@ -1,0 +1,8 @@
+# Streamlit settings for Field Shift (read when running `streamlit run app/app.py` from the repo root).
+
+[theme]
+primaryColor = "#2f6b3a"          # the banner green, used for buttons, sliders and pills
+
+[client]
+toolbarMode = "minimal"
+showSidebarNavigation = false     # the app uses its own banner menu, no sidebar

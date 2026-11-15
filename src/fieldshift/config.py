@@ -24,8 +24,11 @@ COUNTY = {
     "ssurgo_area": "IA169",                # (verify)
 }
 # Approximate bounding box (lon_min, lat_min, lon_max, lat_max).
-# Replace with the TIGER boundary's total_bounds once downloaded.
+# The TIGER boundary below gives -93.6988, 41.8626, -93.2314, 42.2094 (matches).
 COUNTY_BBOX = (-93.70, 41.86, -93.23, 42.21)
+# County outline (US Census TIGERweb, GEOID 19169, simplified): the app accepts fields inside it.
+# The saved POWER cells, SRTM tiles and CDL maps all cover it, so no download is needed for a field.
+COUNTY_GEOJSON = ROOT / "sample_data" / "story_county.geojson"
 
 # Demo fields (playbook section 3). Chosen 2026-11-14: corn or soybean every year 2021-2024 in
 # CDL (>= 85 % of the 400 m box), soils from live SSURGO (Soil Data Access):

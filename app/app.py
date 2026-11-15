@@ -1,9 +1,11 @@
-"""Field Shift - Streamlit app entry point. Run from the repo root:  python -m streamlit run app/app.py
+"""Field Shift - Streamlit app. Run from the repo root:  python -m streamlit run app/app.py
 
-Sets up the page, draws the banner (app/banner.py: logo, name, menu) and opens the chosen page:
-    app/views/home.py      Home
-    app/views/analyse.py   Analyse a field (the tool)
-    app/views/about.py     About (data, method, limits, team)
+One page, three steps plus About, chosen by st.session_state.step:
+    field       Home: choose a field in Story County on the map      (app/views/field.py)
+    questions   Questionnaire: Part 1 your farm, Part 2 priorities    (app/views/questionnaire.py)
+    results     Best-fit rotation, rotation calendar, more detail     (app/views/results.py)
+    about       Data, method, limits, team                            (app/views/about.py)
+The banner (app/banner.py) is on every screen; its Home button returns to the field map.
 """
 
 import sys
@@ -13,17 +15,23 @@ import streamlit as st
 
 APP_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(APP_DIR.parent / "src"))     # fieldshift package
-sys.path.insert(0, str(APP_DIR))                    # banner.py
+sys.path.insert(0, str(APP_DIR))                    # banner, ui, services, calendar_view, views
 
 import banner  # noqa: E402
+import ui  # noqa: E402
+from fieldshift import config  # noqa: E402
+from views import about, field, questionnaire, results  # noqa: E402
 
-st.set_page_config(page_title=banner.NAME, page_icon=str(banner.logo_path()), layout="wide")
+st.set_page_config(page_title=banner.NAME, page_icon=str(banner.logo_path()), layout="wide",
+                   initial_sidebar_state="collapsed")
 
-PAGES = [
-    st.Page("views/home.py", title="Home", icon=":material/home:", default=True),
-    st.Page("views/analyse.py", title="Analyse a field", icon=":material/agriculture:", url_path="analyse"),
-    st.Page("views/about.py", title="About", icon=":material/info:", url_path="about"),
-]
-page = st.navigation(PAGES, position="hidden")      # the banner is the menu
-banner.render(PAGES)
-page.run()
+ss = st.session_state
+if "step" not in ss:
+    ss.step = "field"
+    ss.lat, ss.lon = config.EXAMPLE_POINTS[config.DEFAULT_POINT]
+    ss.result = None
+
+ui.inject_css()
+banner.render()
+{"field": field.render, "questions": questionnaire.render,
+ "results": results.render, "about": about.render}.get(ss.step, field.render)()
