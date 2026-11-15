@@ -1,5 +1,7 @@
 """Step 2: the questionnaire. Part 1 about the farm, Part 2 the farmer's priorities, then run.
 
+The current rotation is built with a crop picker (Year 1, Year 2, ... up to 4 years), pre-filled
+from the crop maps, so any rotation can be entered - not only corn-soybean.
 Answers keep their values when the farmer moves between steps (persist_state="session").
 """
 
@@ -8,36 +10,94 @@ import streamlit as st
 import services
 import ui
 
-EXISTING = {
-    "As the crop maps show": None,
-    "Corn - soybean": ["corn", "soybean"],
-    "Corn - corn - soybean": ["corn", "corn", "soybean"],
-    "Continuous corn": ["corn"],
+CROP_CHOICES = {   # value passed to the model (crops.py format) -> label
+    "corn": "Corn",
+    "soybean": "Soybean",
+    "winter_wheat": "Winter wheat",
+    "oats": "Oats",
+    "oats+red_clover": "Oats + red clover",
+    "oats+alfalfa": "Oats + alfalfa seeding",
+    "alfalfa": "Alfalfa hay",
 }
+MAX_YEARS = 4
 PRIORITY_SLIDERS = {   # app weight key -> (label, help)
     "drought": ("Drought resilience", "Keeping the crop supplied with water at its most sensitive stage in dry years"),
     "water_quality": ("Water quality", "Less water - and the nitrate it carries - draining below the roots"),
     "soil_health": ("Soil health and erosion", "Living cover in heavy rain, especially on slopes; building organic matter"),
-    "income": ("Income", "Typical return to land and management (revenue minus all costs except land rent)"),
+    "income": ("Income", "Typical return over costs (before land rent)"),
     "pests": ("Pests and fertiliser", "Breaking pest and disease cycles; nitrogen from legumes"),
 }
 KEEP = {"persist_state": "session"}
 
 
-def _answers(fld: dict | None) -> tuple[dict, dict]:
+# --- current rotation picker --------------------------------------------------------------------------
+def _from_maps(fld: dict | None) -> list:
+    guess = (fld or {}).get("existing_rotation_guess") or []
+    crops = [y[0] if isinstance(y, (list, tuple)) else y for y in guess]
+    return [c for c in crops if c in CROP_CHOICES][:MAX_YEARS]
+
+
+def _add(crop: str):
+    if len(st.session_state.rot_pick) < MAX_YEARS:
+        st.session_state.rot_pick = st.session_state.rot_pick + [crop]
+
+
+def _undo():
+    st.session_state.rot_pick = st.session_state.rot_pick[:-1]
+
+
+def _clear():
+    st.session_state.rot_pick = []
+
+
+def _use_maps(crops: list):
+    st.session_state.rot_pick = list(crops)
+
+
+def _rotation_picker(fld: dict | None):
+    field_id = (st.session_state.lat, st.session_state.lon)
+    if st.session_state.get("rot_field") != field_id:            # new field: start from its crop maps
+        st.session_state.rot_field = field_id
+        st.session_state.rot_pick = _from_maps(fld)
+    pick = st.session_state.rot_pick
+    maps = _from_maps(fld)
+
+    st.markdown("**Your current rotation**")
+    st.caption("Tap the crops in the order you grow them." + (" Filled in from the crop maps - change it if needed."
+                                                              if maps else ""))
+    chips = "".join(
+        f'<span class="fs-chip"><b>Year {i + 1}</b>{CROP_CHOICES[pick[i]]}</span>' if i < len(pick)
+        else f'<span class="fs-chip empty"><b>Year {i + 1}</b>{"tap a crop" if i == len(pick) else "-"}</span>'
+        for i in range(max(3, min(MAX_YEARS, len(pick) + 1))))
+    st.html(f'<div class="fs-chips">{chips}</div>')
+    full = len(pick) >= MAX_YEARS
+    with st.container(horizontal=True, gap="small", wrap=True):
+        for value, label in CROP_CHOICES.items():
+            st.button(label, key=f"add_{value}", on_click=_add, args=(value,), disabled=full)
+    with st.container(horizontal=True, gap="small", wrap=True):
+        st.button("Undo", icon=":material/undo:", type="tertiary", on_click=_undo, disabled=not pick)
+        st.button("Clear", icon=":material/close:", type="tertiary", on_click=_clear, disabled=not pick)
+        if maps and maps != pick:
+            st.button("Use the crop maps", icon=":material/satellite_alt:", type="tertiary",
+                      on_click=_use_maps, args=(maps,))
+
+
+# --- answers -------------------------------------------------------------------------------------------
+def _answers() -> tuple[dict, dict]:
     ss = st.session_state
     answers = {
         "livestock_or_hay_buyer": ss.q_hay_buyer, "hay_equipment": ss.q_hay_equipment,
         "small_grain_buyer": ss.q_grain_buyer, "can_seed_cover": ss.q_cover, "openness": ss.q_open,
     }
-    if EXISTING.get(ss.q_existing):
-        answers["existing_rotation"] = EXISTING[ss.q_existing]
+    if ss.get("rot_pick"):
+        answers["existing_rotation"] = list(ss.rot_pick)
     if ss.q_tile in ("Yes", "No"):
         answers["tile_drained"] = ss.q_tile == "Yes"
     if ss.q_slope in ("Yes", "No"):
         answers["erosion_prone"] = ss.q_slope == "Yes"
     if ss.q_open == "no":
-        answers["current_crops"] = list(ss.get("q_current_crops", ["Corn", "Soybean"]))
+        grown = {part for c in ss.get("rot_pick", []) for part in c.split("+")}   # e.g. oats, red_clover
+        answers["current_crops"] = sorted(grown or {"corn", "soybean"})
     weights = {k: ss[f"w_{k}"] for k in PRIORITY_SLIDERS}
     if sum(weights.values()) == 0:
         weights = {k: 1 for k in weights}
@@ -48,45 +108,37 @@ def render():
     lat, lon = st.session_state.lat, st.session_state.lon
     st.button("Change field", icon=":material/arrow_back:", type="tertiary", on_click=ui.go("field"))
     st.header("About your farm")
+    st.html(f'<p class="fs-lead">Two short parts, then we compare rotations for your field ({lat:.4f}, {lon:.4f}).</p>')
     try:
         fld = services.field_lookup(lat, lon)
     except Exception:
         fld = None
-    guess = (fld or {}).get("existing_rotation_guess")
-    seen = " - ".join(ui.crop_label(y[0] if isinstance(y, (list, tuple)) else y).lower() for y in guess) if guess else None
-    st.html(f'<p class="fs-lead">Field at {lat:.4f}, {lon:.4f}'
-            + (f" - the crop maps show {seen}." if seen else ".") + "</p>")
 
-    with st.container(border=True):
-        st.subheader("Part 1 - Your farm")
+    with ui.section("part1"):
+        st.html('<p class="fs-kicker">Part 1</p><p class="fs-title">Your farm</p>')
+        _rotation_picker(fld)
+        st.divider()
         c1, c2 = st.columns(2, gap="large")
         with c1:
-            st.selectbox("What do you grow on this field now?", list(EXISTING), key="q_existing",
-                         help=f"The crop maps suggest {seen}." if seen else "No crop-map history here.", **KEEP)
-            st.radio("Is the field tile-drained?", ["As suggested", "Yes", "No"],
-                     key="q_tile", horizontal=True, **KEEP)
+            st.radio("Is the field tile-drained?", ["As suggested", "Yes", "No"], key="q_tile", horizontal=True, **KEEP)
             if fld:
-                st.caption(f"The soil survey suggests: {'yes' if fld.get('tile_drained') else 'no'} "
-                           f"({fld['soil']['drainage_class'].lower()} soils).")
-            st.radio("Is it sloping or prone to erosion?", ["As suggested", "Yes", "No"],
-                     key="q_slope", horizontal=True, **KEEP)
+                st.caption(f"Soil survey suggests: {'yes' if fld.get('tile_drained') else 'no'}")
+            st.radio("Is it sloping or prone to erosion?", ["As suggested", "Yes", "No"], key="q_slope",
+                     horizontal=True, **KEEP)
             if fld:
-                st.caption(f"The slope data suggest: {'yes' if fld.get('erosion_prone') else 'no'} "
-                           f"(about {fld['slope']['slope_pct_mean']}% slope).")
+                st.caption(f"Slope data suggest: {'yes' if fld.get('erosion_prone') else 'no'} "
+                           f"(about {fld['slope']['slope_pct_mean']:.0f}% slope)")
+            st.segmented_control("Open to growing new crops?", ["yes", "maybe", "no"], default="maybe",
+                                 format_func=str.capitalize, key="q_open", required=True, **KEEP)
         with c2:
             st.markdown("**What can you do on this farm?**")
-            st.checkbox("I have livestock or a hay buyer nearby", key="q_hay_buyer", **KEEP)
-            st.checkbox("I have hay equipment (own or hired)", key="q_hay_equipment", **KEEP)
-            st.checkbox("There is a buyer for oats or wheat within reach", value=True, key="q_grain_buyer", **KEEP)
+            st.checkbox("Livestock or a hay buyer nearby", key="q_hay_buyer", **KEEP)
+            st.checkbox("Hay equipment (own or hired)", key="q_hay_equipment", **KEEP)
+            st.checkbox("A buyer for oats or wheat within reach", value=True, key="q_grain_buyer", **KEEP)
             st.checkbox("Someone can seed a cover crop after harvest", value=True, key="q_cover", **KEEP)
-            st.segmented_control("Are you open to growing new crops?", ["yes", "maybe", "no"], default="maybe",
-                                 format_func=str.capitalize, key="q_open", required=True, **KEEP)
-            if st.session_state.get("q_open") == "no":
-                st.multiselect("Which crops do you grow now?", ["Corn", "Soybean", "Oats", "Winter wheat", "Alfalfa"],
-                               default=["Corn", "Soybean"], key="q_current_crops", **KEEP)
 
-    with st.container(border=True):
-        st.subheader("Part 2 - What matters most to you?")
+    with ui.section("part2"):
+        st.html('<p class="fs-kicker">Part 2</p><p class="fs-title">What matters most to you?</p>')
         st.caption("0 = not important, 10 = very important")
         cols = st.columns(2, gap="large")
         for i, (key, (label, why)) in enumerate(PRIORITY_SLIDERS.items()):
@@ -94,18 +146,18 @@ def render():
                 st.slider(label, 0, 10, 5, key=f"w_{key}", help=why, **KEEP)
 
     if st.button("Run analysis", icon=":material/play_arrow:", type="primary", width="stretch"):
-        answers, weights = _answers(fld)
-        with st.spinner("Running 40+ years of NASA weather through each rotation and testing the "
-                        f"ranking {services.N_BOOT} times - about 15 seconds..."):
+        answers, weights = _answers()
+        with st.spinner("Running 40+ years of NASA weather through each rotation - about 15 seconds..."):
             try:
                 result = services.analyse(lat, lon, services.freeze(answers), services.freeze(weights))
             except Exception as e:
                 st.error(f"The analysis could not run: {e}")
                 return
-        order = ui.risk_order(result)
-        best = result["ranking"].index[0]
+        opts = ui.four_options(result)
+        first = "Best fit" if "Best fit" in opts else "Current"
         st.session_state.result = result
-        st.session_state.risk_order = order
-        st.session_state.pick_featured = st.session_state.pick_calendar = best
+        st.session_state.options = opts
+        for key in ("pick_featured", "pick_calendar", "pick_replay"):
+            st.session_state[key] = first
         st.session_state.step = "results"
         st.rerun()
