@@ -1,7 +1,12 @@
-"""Step 3: results. Featured rotation (best fit first), its calendar, then more detail.
+"""Step 3: results.
 
-The featured card and the calendar each have a rotation switcher ordered from lowest to highest
-risk for this farmer; the two switchers stay in sync.
+Four sections, each with the same rotation switcher at the top (Current, Best fit, Risk 1, Risk 2;
+the switchers stay in sync):
+    1. Featured rotation   key numbers, comparison with what the farmer grows now, things to check
+    2. Rotation calendar   what is in the field through the year
+    3. Replay a hard year  that year vs a typical year
+    4. Where the data comes from
+Then one collapsed "More detail" area (all rotations, rotations left out, climate).
 """
 
 import html
@@ -10,29 +15,26 @@ import pandas as pd
 import streamlit as st
 
 import calendar_view
-import services
 import ui
 from fieldshift import pipeline
 
-
-def _sync(src: str, dst: str):
-    st.session_state[dst] = st.session_state[src]
-
-
-def _risk_rank(r: dict, order: list) -> dict:
-    """Risk rank of each alternative (1 = lowest risk); the current rotation has none."""
-    alts = [n for n in order if r["candidates"][n].get("tier") != "current"]
-    return {name: i + 1 for i, name in enumerate(alts)}
+PICK_KEYS = ("pick_featured", "pick_calendar", "pick_replay")
+REPLAY_MEASURES = {   # replay measure -> (label, unit)
+    "drought_deficit_mm": ("Water the crop missed", "mm"),
+    "drainage_mm": ("Water draining away", "mm"),
+    "bare_wet_days": ("Bare days in heavy rain", "days"),
+    "waterlogged_days": ("Waterlogged days", "days"),
+}
 
 
-def _label(r: dict, order: list, best: str):
-    rank = _risk_rank(r, order)
+def _sync(src: str):
+    for key in PICK_KEYS:
+        st.session_state[key] = st.session_state[src]
 
-    def fmt(name: str) -> str:
-        short = ui.short_name(r["candidates"][name])
-        text = f"{rank[name]}. {short}" if name in rank else f"Now: {short}"
-        return text + ("  ★" if name == best else "")
-    return fmt
+
+def _switcher(key: str, labels: list):
+    st.segmented_control("Rotation", labels, key=key, required=True, on_change=_sync, args=(key,),
+                         label_visibility="collapsed", width="stretch")
 
 
 def _priority_bars(sv_row: pd.Series) -> str:
@@ -42,12 +44,7 @@ def _priority_bars(sv_row: pd.Series) -> str:
             continue
         v = float(min(max(sv_row[col], 0.0), 1.0))
         d = v - 0.5
-        if abs(d) < 0.02:
-            word, cls = "Similar", "up"
-        elif d > 0:
-            word, cls = "Better", "up"
-        else:
-            word, cls = "Worse", "down"
+        word, cls = ("Similar", "up") if abs(d) < 0.02 else (("Better", "up") if d > 0 else ("Worse", "down"))
         rows.append(f'<div class="lab">{html.escape(label)}</div>'
                     f'<div class="fs-bar"><div class="fill {cls}" style="left:{min(v, 0.5) * 100:.1f}%;'
                     f'width:{abs(d) * 100:.1f}%"></div><div class="mid"></div></div>'
@@ -55,145 +52,148 @@ def _priority_bars(sv_row: pd.Series) -> str:
     return f'<div class="fs-bars">{"".join(rows)}</div>'
 
 
-def _featured(r: dict, sel: str, best: str, order: list, fmt):
-    cand = r["candidates"][sel]
-    row = r["ranking"].loc[sel]
+def _header(label: str, name: str, cand: dict) -> None:
+    cls = {"Current": "current", "Best fit": ""}.get(label, "alt")
+    years = " → ".join(calendar_view.year_text(y) for y in cand["plan"])
+    st.html(f'<span class="fs-badge {cls}">{html.escape(label)}</span>'
+            f'<p class="fs-title" style="margin-top:.4rem">{html.escape(name)}</p>'
+            f'<p class="fs-sub">{html.escape(years)}</p>')
+
+
+# --- 1. featured ----------------------------------------------------------------------------------------
+def _featured(r: dict, label: str, name: str, labels: list):
+    cand = r["candidates"][name]
+    row = r["ranking"].loc[name]
     is_current = cand.get("tier") == "current"
-    with st.container(border=True, key="featured"):
-        if sel == best:
-            badge = '<span class="fs-badge">Best fit for you</span>'
-        elif is_current:
-            badge = '<span class="fs-badge current">Your current rotation</span>'
-        else:
-            rank = _risk_rank(r, order)
-            badge = f'<span class="fs-badge alt">Option {rank[sel]} of {len(rank)}, ordered by risk</span>'
-        st.html(badge)
-        st.subheader(sel)
-        st.caption(" → ".join(f"Year {i + 1}: {calendar_view.year_text(y)}" for i, y in enumerate(cand["plan"])))
+    with ui.section("featured"):
+        st.html('<p class="fs-kicker">Featured rotation</p>')
+        _switcher("pick_featured", labels)
+        _header(label, name, cand)
 
         verdict = r.get("verdict") or {}
-        if sel == best and verdict.get("message"):
-            (st.success if verdict.get("kind") == "options_better" else st.info)(verdict["message"])
+        if label == "Best fit" and verdict.get("message"):
+            st.success(verdict["message"])
 
-        rng = r["income"]["ranges"].get(sel, {})
+        rng = r["income"]["ranges"].get(name, {})
         diff = row["score_mean"] - 0.5
         fit_note = ('<div class="n">what the others are compared with</div>' if is_current else
                     f'<div class="n {"up" if diff >= 0 else "down"}">{diff:+.2f} vs what you grow now</div>')
-        stats = [
-            ("Overall fit", f"{row['score_mean']:.2f}", fit_note,
-             "0.5 = same as now; higher is better for your priorities"),
-            ("In a bad case", f"{row['score_p05']:.2f}", "score in the worst 5% of runs", ""),
-            ("Chance it is best", f"{row['p_top']:.0%}", "of the runs over past weather and prices", ""),
-            ("Return to land & management", f"{ui.money(rng.get('mid'))}/acre",
-             f"{ui.money(rng.get('low'))} to {ui.money(rng.get('high'))} by price; "
-             f"after land rent: {ui.money(r['income'].get('all_costs_usd_per_acre', {}).get(sel))}",
-             r["income"].get("land_rent_note", "")),
-        ]
-        cells = "".join(
-            f'<div class="fs-stat" title="{html.escape(tip)}"><div class="l">{label}</div><div class="v">{value}</div>'
-            + (note if note.startswith("<div") else f'<div class="n">{note}</div>') + "</div>"
-            for label, value, note, tip in stats)
-        st.html(f'<div class="fs-stats">{cells}</div>')
-        st.caption("Scores: 0.5 = the same as what you grow now, higher = better for your priorities. "
-                   f"Each rotation was run {services.N_BOOT} times over past weather years, prices and small changes "
-                   "in your priorities.")
+        st.html(
+            '<div class="fs-stats">'
+            f'<div class="fs-stat" title="0.5 = the same as now; higher is better for your priorities">'
+            f'<div class="l">Overall fit for your priorities</div><div class="v">{row["score_mean"]:.2f}</div>{fit_note}</div>'
+            f'<div class="fs-stat"><div class="l">Return over costs</div><div class="v">{ui.money(rng.get("mid"))}'
+            f'<span style="font-size:.9rem;font-weight:500">/acre/yr</span></div>'
+            f'<div class="n">{ui.money(rng.get("low"))} to {ui.money(rng.get("high"))} with low/high prices; '
+            f'before land rent</div></div>'
+            f'<div class="fs-stat"><div class="l">Came out best</div><div class="v">{row["p_top"]:.0%}</div>'
+            f'<div class="n">of runs over 40+ years of weather and prices</div></div>'
+            '</div>')
 
-        if is_current:
-            st.markdown("This is what you grow now: every other rotation is compared with it.")
-        else:
+        if not is_current:
             st.markdown("**Compared with what you grow now**")
-            st.html(_priority_bars(r["point_scores"]["slider_values"].loc[sel]))
+            st.html(_priority_bars(r["point_scores"]["slider_values"].loc[name]))
 
-        risks = r.get("risk_flags", {}).get(sel, [])
-        if risks:                                   # field-specific weather risks (model/risks.py)
-            st.markdown("**Weather risks on this field**")
-            icon = {"warn": "⚠️", "watch": "👁️", "info": "ℹ️"}
-            st.markdown("\n".join(f"- {icon.get(f['level'], '')} {f['sentence']}" for f in risks))
-            if r.get("risk_note"):
-                st.caption(r["risk_note"])
-
-        flags = r["flags"].get(sel, [])
-        if flags:
-            st.markdown("**Before you switch**")
-            st.markdown("\n".join(f"- {f}" for f in flags))
-
-        st.divider()
-        st.pills("See another rotation (lowest risk first)", order, format_func=fmt, key="pick_featured",
-                 required=True, on_change=_sync, args=("pick_featured", "pick_calendar"))
+        checks = list(r["flags"].get(name, []))
+        checks += [f["sentence"] for f in r.get("risk_flags", {}).get(name, []) if f.get("level") in ("warn", "watch")]
+        if checks:
+            st.markdown("**Things to check**")
+            st.html('<ul class="fs-list">' + "".join(f"<li>{html.escape(c)}</li>" for c in checks[:4]) + "</ul>")
 
 
-def _calendar(r: dict, sel: str, order: list, fmt):
-    with st.container(border=True, key="calendar"):
-        st.subheader("Rotation calendar")
-        st.caption("What is in the field through the year, for each year of the rotation.")
-        st.pills("Rotations, lowest risk first", order, format_func=fmt, key="pick_calendar",
-                 required=True, on_change=_sync, args=("pick_calendar", "pick_featured"))
-        st.html(calendar_view.calendar_html(r["candidates"][sel]["plan"]))
-        st.caption("Planting and harvest dates are typical for central Iowa. Bare soil is when erosion and "
-                   "nitrate loss are most likely. Hover over a bar for its dates. "
-                   "★ = best fit. \"Now\" is what you grow today; the others are numbered from lowest to highest "
-                   "risk, by each rotation's score in a bad case (the worst 5% of runs over past weather, "
-                   "prices and your priorities).")
+# --- 2. calendar ---------------------------------------------------------------------------------------
+def _calendar(r: dict, label: str, name: str, labels: list):
+    with ui.section("calendar", sand=False):
+        st.html('<p class="fs-kicker">Rotation calendar</p>')
+        _switcher("pick_calendar", labels)
+        _header(label, name, r["candidates"][name])
+        st.html(calendar_view.calendar_html(r["candidates"][name]["plan"]))
 
 
-def _details(r: dict, sel: str, order: list):
-    st.subheader("More detail")
-    rk, inc = r["ranking"], r["income"]["usd_per_acre"]
-    with st.expander("All rotations compared"):
+# --- 3. hard year ---------------------------------------------------------------------------------------
+def _mini(title: str, unit: str, year: int, that: float, typical: float) -> str:
+    """One measure: a typical year vs the chosen year (amber = worse than typical, green = better)."""
+    if max(that, typical) < 0.5:
+        body = f'<div class="fs-sub">None in {year} or in a typical year.</div>'
+    else:
+        worse = that > typical
+        fmt = (lambda v: f"{v:.1f} {unit}" if unit == "days" and v < 10 else f"{v:.0f} {unit}")
+        body = ui.hbar_html([("Typical year", typical, "#cbbd9c"),
+                             (str(year), that, ui.AMBER if worse else ui.GREEN)], fmt=fmt)
+    return f'<div class="fs-mini"><h4>{html.escape(title)}</h4>{body}</div>'
+
+
+def _replay(r: dict, label: str, name: str, labels: list):
+    with ui.section("replay"):
+        st.html('<p class="fs-kicker">Replay a hard year</p>')
+        _switcher("pick_replay", labels)
+        _header(label, name, r["candidates"][name])
+        reasons = {}
+        for why, ys in r["replay"]["suggested_years"].items():
+            for y in ys:
+                reasons.setdefault(int(y), why.replace(" (weather)", "").lower())
+        years = sorted(reasons)
+        default = 2012 if 2012 in years else years[0]
+        year = st.selectbox("Year", years, index=years.index(default), key="replay_year",
+                            format_func=lambda y: f"{y} - {reasons[y]}")
+        rp = r["replay"] if year == r["replay"]["year"] else pipeline.replay(r["run"], year)
+        t = rp["table"]
+        if name not in t.index.get_level_values(0):
+            st.info("No replay for this rotation.")
+            return
+        rows = t.loc[name]
+        cards = [_mini(title, unit, year, float(rows.loc[m, "that_year"]), float(rows.loc[m, "typical"]))
+                 for m, (title, unit) in REPLAY_MEASURES.items() if m in rows.index]
+        st.html(f'<div class="fs-minis">{"".join(cards)}</div>')
+        st.html('<p class="fs-source">Your field\'s soil and this rotation, run with that year\'s NASA POWER '
+                'weather. Amber = worse than a typical year.</p>')
+
+
+# --- 4. data sources --------------------------------------------------------------------------------------
+def _data_sources(r: dict):
+    notes = " ".join((r.get("validation") or {}).get("notes", []))
+    smap = "Coming soon" if "SMAP not available" in notes else "Checks the water model"
+    hls = "Coming soon" if "HLS NDVI not available" in notes else "Checks the crop calendar"
+    cards = [
+        ("nasa", "NASA POWER - daily weather", "Rain, temperature and sunshine for your area since 1981. "
+                                                "Drives every water and climate result."),
+        ("nasa", "NASA SRTM - elevation", "30 m elevation map. Checks your field's slope."),
+        ("nasa", "NASA SMAP - soil moisture from space", f"Satellite soil moisture since 2015. {smap}."),
+        ("nasa", "NASA HLS - Landsat and Sentinel-2", f"How green your field is through the year. {hls}."),
+        ("", "USDA soil survey and crop maps", "Your field's soils, drainage, slope and past crops."),
+        ("", "Iowa State University and USDA", "Crop budgets, yields, prices and rotation research."),
+    ]
+    with ui.section("data", sand=False):
+        st.html('<p class="fs-kicker">Where the data comes from</p>'
+                '<div class="fs-data">' + "".join(
+                    f'<div class="{cls}"><b>{html.escape(t)}</b><span>{html.escape(d)}</span></div>'
+                    for cls, t, d in cards) + "</div>"
+                '<p class="fs-source">Checked against a weather station and soil-moisture probes near Ames '
+                '(Iowa Environmental Mesonet).</p>')
+
+
+# --- more detail ----------------------------------------------------------------------------------------
+def _details(r: dict, options: dict):
+    rk, inc = r["ranking"], r["income"]["ranges"]
+    tag = {name: label for label, name in options.items()}
+    order = [options["Current"]] + ui.risk_order(r)
+    with st.expander("More detail: all rotations, rotations left out, climate"):
+        st.markdown("**All rotations compared** (lowest risk first)")
         table = pd.DataFrame({
             "Rotation": order,
-            "Type": [ui.TIER.get(r["candidates"][n].get("tier"), "") for n in order],
+            "Shown as": [tag.get(n, "") for n in order],
             "Overall fit": [rk.loc[n, "score_mean"] for n in order],
-            "Bad case": [rk.loc[n, "score_p05"] for n in order],
-            "Chance best": [rk.loc[n, "p_top"] for n in order],
-            "Return $/acre/yr (before rent)": [inc.get(n) for n in order],
-            "After rent": [r["income"].get("all_costs_usd_per_acre", {}).get(n) for n in order],
-        }, index=pd.Index([str(_risk_rank(r, order).get(n, "now")) for n in order], name="Risk rank"))
-        st.dataframe(table.style.format({"Overall fit": "{:.2f}", "Bad case": "{:.2f}", "Chance best": "{:.0%}",
-                                         "Return $/acre/yr (before rent)": "{:,.0f}", "After rent": "{:,.0f}"},
-                                        na_rep="n/a"), width="stretch")
-        if r["income"].get("basis"):
-            st.caption(f"Return: {r['income']['basis']}. {r['income'].get('land_rent_note', '')}")
-        rob = (r.get("robustness") or {}).get("note")
-        if rob:
-            st.caption(rob)
-    if r["removed"]:
-        with st.expander(f"Rotations left out for your farm ({len(r['removed'])})"):
-            for x in r["removed"]:
-                st.markdown(f"- **{x['name']}**: {x['reason']}")
-    with st.expander("Replay a hard year"):
-        rp0 = r["replay"]
-        years = sorted({y for ys in rp0["suggested_years"].values() for y in ys})
-        year = st.selectbox("Year", years, index=years.index(rp0["year"]) if rp0["year"] in years else 0,
-                            key="replay_year")
-        rp = rp0 if year == rp0["year"] else pipeline.replay(r["run"], year)
-        st.write(rp["sentence"])
-        t = rp["table"].reset_index()
-        first = t.columns[0]
-        show = t[t[first] == sel].drop(columns=[first])
-        st.caption(f"For: {sel}")
-        st.dataframe(show, width="stretch", hide_index=True)
-    with st.expander("Climate at your field (NASA POWER)"):
-        rows = [{"Indicator": s["label"], "Unit": s["unit"],
-                 f"Mean {s['recent_years'][0]}-{s['recent_years'][1]}": round(s["recent_mean"], 1),
-                 "Range": f"{s['recent_min']:.0f} to {s['recent_max']:.0f}",
-                 "Trend per decade": round(s.get("trend_per_decade") or 0, 2)}
-                for s in r["snapshot"].values()]
+            "Return $/acre/yr": [inc.get(n, {}).get("mid") for n in order],
+        })
+        st.dataframe(table.style.format({"Overall fit": "{:.2f}", "Return $/acre/yr": "{:,.0f}"}, na_rep="n/a"),
+                     width="stretch", hide_index=True)
+        if r["removed"]:
+            st.markdown("**Left out for your farm**")
+            st.markdown("\n".join(f"- {x['name']}: {x['reason']}" for x in r["removed"]))
+        st.markdown("**Climate at your field** (NASA POWER, recent years)")
+        rows = [{"Indicator": s["label"], "Recent average": f"{s['recent_mean']:.0f} {s['unit']}",
+                 "Range": f"{s['recent_min']:.0f} to {s['recent_max']:.0f}"} for s in r["snapshot"].values()]
         st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
-        tr = r.get("trends")
-        if tr is not None and len(tr):
-            st.markdown("\n".join(f"- {s}" for s in tr["sentence"]))
-    with st.expander("Evidence and data sources"):
-        val = r.get("validation") or {}
-        st.markdown("**Checking the model against measurements**")
-        st.markdown("\n".join(f"- {s}" for s in val.get("sentences", [])) or "No measurements for this field yet.")
-        st.markdown("**Data used for this field**")
-        src = [f"- **{k.replace('_', ' ').capitalize()}**: {v}" for k, v in r["field"].get("sources", {}).items()]
-        src.append("- **Weather**: NASA POWER daily data, 1981-2025, for the ~50 km cell containing the field")
-        st.markdown("\n".join(src))
-        notes = val.get("notes", [])
-        if notes:
-            st.caption("Notes: " + " ".join(notes))
 
 
 def render():
@@ -201,22 +201,22 @@ def render():
     if r is None:
         st.session_state.step = "questions"
         st.rerun()
-    order = st.session_state.risk_order
-    best = r["ranking"].index[0]
-    fmt = _label(r, order, best)
-    for key in ("pick_featured", "pick_calendar"):             # e.g. after a new analysis
-        if st.session_state.get(key) not in order:
-            st.session_state[key] = best
-    sel = st.session_state.pick_featured
+    options = st.session_state.get("options") or ui.four_options(r)
+    labels = list(options)
+    for key in PICK_KEYS:                                       # e.g. after a new analysis
+        if st.session_state.get(key) not in labels:
+            st.session_state[key] = "Best fit" if "Best fit" in labels else labels[0]
+    label = st.session_state.pick_featured
+    name = options[label]
 
     with st.container(horizontal=True, gap="small"):
         st.button("Edit answers", icon=":material/arrow_back:", type="tertiary", on_click=ui.go("questions"))
         st.button("Change field", icon=":material/map:", type="tertiary", on_click=ui.go("field"))
     st.header("Your results")
-    lat, lon = st.session_state.lat, st.session_state.lon
-    st.html(f'<p class="fs-lead">Field at {lat:.4f}, {lon:.4f} - {len(order)} rotations compared with what '
-            "you grow now, over 40+ years of NASA weather.</p>")
+    st.html('<p class="fs-lead">Rotations for your field, compared with what you grow now.</p>')
 
-    _featured(r, sel, best, order, fmt)
-    _calendar(r, sel, order, fmt)
-    _details(r, sel, order)
+    _featured(r, label, name, labels)
+    _calendar(r, label, name, labels)
+    _replay(r, label, name, labels)
+    _data_sources(r)
+    _details(r, options)

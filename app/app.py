@@ -33,5 +33,24 @@ if "step" not in ss:
 
 ui.inject_css()
 banner.render()
+
+# A new screen starts at the top (Streamlit otherwise keeps the scroll position between screens).
+# The script element is ALWAYS present (so the elements after it, e.g. the map, keep their place and
+# are not rebuilt); its text only changes - and so it only runs again - when the screen changes.
+if ss.get("_shown_step") != ss.step:
+    ss._shown_step = ss.step
+    ss._nav = ss.get("_nav", 0) + 1
+st.html(f"""<script>/* screen change {ss._nav} */
+(function () {{
+  function top() {{
+    var m = document.querySelector('[data-testid="stMain"]');
+    if (m) m.scrollTo({{top: 0}});
+    window.scrollTo(0, 0);
+    document.body.classList.remove("fs-banner-hidden");
+  }}
+  top(); setTimeout(top, 80); setTimeout(top, 350);
+}})();
+</script>""", unsafe_allow_javascript=True)
+
 {"field": field.render, "questions": questionnaire.render,
  "results": results.render, "about": about.render}.get(ss.step, field.render)()
