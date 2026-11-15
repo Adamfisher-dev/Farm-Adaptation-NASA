@@ -31,6 +31,12 @@ base_sequences:
     confidence: medium
     marsden: false
     sources: ["Davis et al. 2012, PLOS ONE 7(10): e47149 (Marsden Farm 2-year system)"]
+    card:
+      why: "Corn and soybean alternate each year - the usual Corn Belt rotation. Corn after soybean needs less nitrogen and yields more than corn after corn."
+      benefits: "Two familiar crops with established markets, equipment, insurance and know-how."
+      gaps: "It only partly breaks pest cycles: some corn rootworm populations in the Corn Belt have adapted to the corn-soybean rotation (verify the local situation with Iowa State Extension)."
+      risks: ""
+      risks_if_no_cover: "The soil is bare for about half of every year, from harvest to planting, when spring and autumn storms can wash soil away and nitrate can leave through drainage."
   - id: csw
     name: Corn–soybean–winter wheat
     sequence: [corn, soybean, winter_wheat]
@@ -38,6 +44,11 @@ base_sequences:
     confidence: low
     marsden: false
     sources: ["SARE (2007) Managing Cover Crops Profitably, 3rd ed. (winter small grains as cover) (verify)"]
+    card:
+      why: "Adds winter wheat after soybean: a third crop, sown in autumn, that covers the soil over winter and is harvested in July."
+      benefits: "Living cover through winter and spring, a third crop to break pest and weed cycles, and wheat straw to sell; the July harvest leaves time to sow a cover crop or spread manure."
+      gaps: "Iowa grows little winter wheat: there are no official Iowa wheat yields, so yields and prices here come from Illinois, Missouri and Wisconsin, and local buyers may be scarce."
+      risks: "Needs a wheat buyer and planting soon after soybean harvest; winter damage and head scab can cut yields in some years (verify with Iowa State Extension)."
   - id: csorc
     name: Corn–soybean–oats with red clover
     sequence: [corn, soybean, "oats+red_clover"]
@@ -45,6 +56,11 @@ base_sequences:
     confidence: medium
     marsden: true
     sources: ["Davis et al. 2012, PLOS ONE 7(10): e47149 (Marsden Farm 3-year system)"]
+    card:
+      why: "Adds oats sown together with red clover - the 3-year system tested at Iowa State's Marsden Farm. A third crop breaks the corn-soybean pest and weed cycle, and the clover supplies nitrogen to the next corn crop."
+      benefits: "In the Marsden Farm trial the 3- and 4-year systems used far less synthetic nitrogen and herbicide than corn-soybean while yields and profits stayed similar."
+      gaps: "The Marsden results describe whole farming systems (with less herbicide and, in the longer rotations, manure), not the rotation alone. Oat prices and buyers vary locally, and soil organic matter changes slowly - it is scored from the research literature, not measured."
+      risks: "Needs an oat buyer or on-farm use, and the clover can fail to establish in a dry summer."
   - id: csoaa
     name: Corn–soybean–oats/alfalfa–alfalfa (Marsden-type 4-year)
     sequence: [corn, soybean, "oats+alfalfa", alfalfa]
@@ -52,6 +68,11 @@ base_sequences:
     confidence: medium
     marsden: true
     sources: ["Davis et al. 2012, PLOS ONE 7(10): e47149 (Marsden Farm 4-year system)"]
+    card:
+      why: "The 4-year system tested at Iowa State's Marsden Farm: oats sown together with alfalfa, then a full year of alfalfa hay. Two seasons of perennial cover give the strongest pest and weed break of the options."
+      benefits: "Alfalfa keeps living roots in the soil all year and leaves nitrogen for the following corn; in the Marsden Farm trial this system cut fertiliser and herbicide use sharply while profits stayed similar."
+      gaps: "The Marsden results describe a whole farming system that also received manure. Hay income depends on local buyers or livestock and on hay quality - the price used is the Iowa average for all qualities."
+      risks: "Ties the field to hay for two seasons and needs hay equipment, labour and a buyer or livestock; alfalfa uses a lot of water, so it suffers in a July drought."
 
 # --- Cover-crop modifiers ------------------------------------------------------------
 cover_modifiers:
@@ -60,20 +81,40 @@ cover_modifiers:
     suffix: ""
     where: none               # none | before_soybean | every_bare_gap
     score_adjust: {}
+    card: {}
   - id: rye_before_soy
     name: cereal rye before soybean only
     suffix: " + cereal rye before soybean"
     where: before_soybean
     score_adjust: {som_proxy: 1}
     sources: ["Iowa State University Extension: cereal rye before soybean (verify exact publication)"]
+    card:
+      why: "Adds a cereal rye cover crop over the winter before soybeans - the lower-risk place for a cover crop, because soybeans are less affected by a rye cover than corn."
+      benefits: "Living roots from corn harvest to spring hold the soil and take up nitrogen left after corn, and state cost-share can pay part of the cost."
+      gaps: "Soil organic matter builds up slowly over years; the soil-health benefit is scored from the research literature, not measured."
+      risks: "The rye has to be terminated before the soybeans are planted, within your crop insurer's rules."
+
   - id: rye
     name: cereal rye in every bare winter gap
     suffix: " + cereal rye"
     where: every_bare_gap
     score_adjust: {som_proxy: 2}
     sources: ["SARE (2007) Managing Cover Crops Profitably, 3rd ed. (verify)"]
+    card:
+      why: "Adds a cereal rye cover crop in every bare winter, so the field is almost never left without living cover."
+      benefits: "Living roots hold the soil and take up leftover nitrogen through every winter, including the winter before corn, and state cost-share can pay part of the cost."
+      gaps: "Soil organic matter builds up slowly over years; the soil-health benefit is scored from the research literature, not measured."
+      risks: "Rye before corn can reduce corn yield unless it is terminated about 10-14 days before planting."
+
 
 cover_crop: cereal_rye
+
+# Card text for a farmer's own rotation that is not in the library (model/cards.py).
+existing_card:
+  why: "Your current rotation, as grown on this field. Every option is compared with it."
+  benefits: "No change to crops, equipment, markets or workload."
+  gaps: "This rotation is not in the library, so its nitrogen, pest and soil scores come from general rules (low confidence)."
+  risks: ""
 
 # --- How the ordinal scores were set (shown on the evidence page) --------------------
 # Same rules score a farmer's own rotation when it is not in the library (confidence low).

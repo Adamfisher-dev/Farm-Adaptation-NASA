@@ -538,7 +538,7 @@ def run_analysis(lat: float, lon: float, answers: dict | None = None, weights: d
                   for n in shown_names if n in rotations}
     by_name = {c.name: c for c in cands}
     year = replay_year or 2012
-    return {
+    res = {
         "field": out["field"],
         "existing": {"rotation": existing, "from": existing_from, "name": out["baseline"]},
         "candidates": {c.name: c.to_dict() for c in cands},
@@ -572,7 +572,12 @@ def run_analysis(lat: float, lon: float, answers: dict | None = None, weights: d
                                      "2026, Iowa State FM 1851); at 2026 prices that is often negative."},
         "weights": weights,
         "run": out,                      # everything else (tables, weather, ...) for charts
+        "boot_scores": robust["scores"],  # bootstrap replicate scores (cards: chance of beating the current one)
+        "boot_rotations": robust["rotations"],
     }
+    from fieldshift.model import cards as cards_mod
+    res["cards"] = cards_mod.build_cards(res)   # five-part cards for the rotations shown (model/cards.py)
+    return res
 
 
 # --- Price uncertainty and the overall verdict ----------------------------------------------------------
